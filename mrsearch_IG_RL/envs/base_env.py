@@ -48,4 +48,21 @@ class base_env(env):
     def render(self):
         pass
 
+    def _setup(self):
+
+        ## initiate simulation
+        self.client.resetSimulation()
+        self.client.setTimeStep(self.dt)
+        self.client.setGravity(0,0,-9.8)
+
+        ## setup ground
+        plane = p.createCollisionShape(shapeType = p.GEOM_PLANE)
+        self.ground  = p.createMultiBody(0, plane)
+        p.changeDynamics(ground, -1, lateralFriction=0.0) 
+
+        
+
+
+
+
 

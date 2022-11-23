@@ -1,6 +1,6 @@
 from setuptools import setup
 
-setup(name='mrsearch-IG-RL',
+setup(name='mrsearch_IG_RL',
       version='0.1.0',
       install_requires=[
             'gym',
