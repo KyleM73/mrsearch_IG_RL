@@ -1,5 +1,6 @@
 import os
 import yaml
+import time
 import numpy as np
 
 from gym import spaces, Env
@@ -39,10 +40,9 @@ class base_env(Env):
         self.h = int(self.cfg["environment"]["height"] * self.resolution)
         self.w = int(self.cfg["environment"]["width"] * self.resolution)
         self.fname = self.cfg["environment"]["filename"]
-        print("generating urdf...")
-        self.env_c = EnvCreator.envCreator(PATH_DIR+self.fname)
-        self.env_urdf = self.env_c.get_urdf_fast()
-        print("done.")
+        self.env_c = EnvCreator.envCreator(PATH_DIR+self.fname,resolution=self.resolution)
+        self.map = self.env_c.image2occupancy()
+        self.map_urdf = self.cfg["environment"]["urdf"]
 
         self.obs_space = spaces.Box(low=-1,high=1,shape=(self.h,self.w),dtype=np.float32)
         self.action_space = spaces.Box(low=0,high=1,shape=(2,),dtype=np.float32)
@@ -60,7 +60,7 @@ class base_env(Env):
         p.changeDynamics(self.ground, -1, lateralFriction=0.0) 
 
         ## setup walls
-        self.walls = p.loadURDF(self.env_urdf,useFixedBase=True)
+        self.walls = p.loadURDF(self.map_urdf,useFixedBase=True)
         p.changeDynamics(self.walls, -1, lateralFriction=1.0)
 
         self._get_obs()
@@ -83,8 +83,9 @@ if __name__ == "__main__":
     env = base_env(False,PATH_DIR+"/cfg/base_env.yaml")
     env.reset()
 
-    for _ in range(10000):
+    for _ in range(100000):
         env.step()
+        time.sleep(0.1)
 
 
         
