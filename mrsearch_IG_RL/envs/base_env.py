@@ -16,7 +16,8 @@ from pybullet import getEulerFromQuaternion as Q2E
 import pybullet_utils.bullet_client as bc
 import pybullet_data
 
-PATH_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+import mrsearch_IG_RL
+from mrsearch_IG_RL import PATH_DIR
 
 class base_env(Env):
     def __init__(self,training=True,cfg=None):
@@ -34,13 +35,18 @@ class base_env(Env):
             p.configureDebugVisualizer(p.COV_ENABLE_GUI,0)
 
         self.training = training
-        self.record = self.cfg["record"]
-        self.log_dir = self.cfg["log_dir"]
+
+        ## record params
+        self.record = self.cfg["record"]["record"]
+        self.log_dir = self.cfg["record"]["log_dir"]
+        self.log_name = self.cfg["record"]["log_name"]
+        self.log_name_obs = self.cfg["record"]["log_name_obs"]
 
         ## simulation params
         self.horizon = self.cfg["simulation"]["horizon"]
         self.dt = self.cfg["simulation"]["dt"]
         self.policy_dt = self.cfg["simulation"]["policy_dt"]
+        self.max_steps = int(self.horizon / self.policy_dt)
         self.repeat_action = int(self.policy_dt / self.dt)
         self.pad_l = self.cfg["simulation"]["pad_l"]
         self.entropy_decay = self.cfg["simulation"]["entropy_decay"]
@@ -71,16 +77,22 @@ class base_env(Env):
         self.scan_density = self.scan_density_coef * 2 * math.pi / math.atan(self.resolution/self.scan_range) # resolution / max(height, width)
         self.num_scans = int(self.FOV / (2 * math.pi) * self.scan_density)
         self.scan_angle = self.FOV / self.num_scans #rad
+        self.lidar_threads = self.cfg["lidar"]["threads"]
+
+        ## reward params
+        self.detection_reward = self.cfg["rewards"]["detection"]
 
         ## model I/O
-        self.obs_space = spaces.Box(low=-1,high=1,shape=(self.h,self.w),dtype=np.float32)
+        # observe : cropped entropy map
+        # act     : XY waypts, desired heading
+        self.obs_w = min(self.h,self.w) + 1
+        self.obs_space = spaces.Box(low=-1,high=1,shape=(self.obs_w,self.obs_w),dtype=np.float32)
         self.action_space = spaces.Box(low=-1,high=1,shape=(3,),dtype=np.float32)
 
         ## kernel
         self.k = torch.ones((10,10))
 
     def reset(self):
-
         ## initiate simulation
         self.client.resetSimulation()
         self.client.setTimeStep(self.dt)
@@ -110,49 +122,48 @@ class base_env(Env):
 
         ## reset entropy
         self.entropy = torch.where(self.map==1,1,0)
+        self.information = torch.sum(torch.abs(self.entropy))
+        self.detection = False
+        self.done = False
+        self.t = 0
 
         ## setup recording
         if self.record:
-            try:
-                plt.close("all")
-            except:
-                pass
-            self.fig,self.ax = plt.subplots()
-            self.fig.subplots_adjust(left=0,bottom=0,right=1,top=1,wspace=None,hspace=None)
-            self.ax.set_axis_off()
-            self.frames = []
-            self.fps = int(self.policy_dt**-1)
-            self.writer = animation.FFMpegWriter(fps=self.fps) 
+            self._setup_recording()
 
         self._get_obs()
         self._get_rew()
 
-    def step(self,action):
+        return self.crop
 
+    def step(self,action):
         self._act(action)
         self._get_obs()
         self._get_rew()
+        self.t += 1
 
         if self.done and self.record:
-            ani = animation.ArtistAnimation(self.fig,self.frames,interval=int(1000/self.fps),blit=True,repeat=False)
-            ani.save(PATH_DIR+self.log_dir+"entropy0.mp4",writer=self.writer)
+            self._save_videos()
+
+        return self.crop, self.reward, self.done, self.dictLog
 
     def _act(self,action):
-
         self.waypt = action[:2]
         self.heading = math.pi * action[2]
 
         norm = torch.linalg.norm(torch.tensor(self.waypt)).item()
-        self.force = [self.waypt[0],self.waypt[1]/norm,0]
+        self.force = [self.waypt[0]/(norm+1e-4),self.waypt[1]/(norm+1e-4),0]
 
-        if self.heading > self.ori:
+        # assume RHR
+        if self.heading > 0:
             self.torque = [0,0,self.max_aaccel]
-        elif self.heading < self.ori:
+        elif self.heading < 0:
             self.torque = [0,0,-self.max_aaccel]
         else:
             self.torque = [0,0,0]
 
         for _ in range(self.repeat_action):
+            ## fix this
             if torch.linalg.norm(torch.tensor(self.vel)).item() < self.max_vel:
                 p.applyExternalForce(self.robot,-1,self.force,[0,0,0],p.LINK_FRAME)
             if torch.linalg.norm(torch.tensor(self.avel)).item() < self.max_avel:
@@ -160,34 +171,92 @@ class base_env(Env):
             self.client.stepSimulation()
 
     def _get_obs(self):
+        self._get_pose()
+        self._decay_entropy()
+        self._get_scans()
+        self._get_crop()
+        self._get_IG()
 
+        if self.record:
+            self._save_entropy()
+
+    def _get_rew(self):
+        dictState = {}
+        dictState["entropy"] = self.entropy
+        dictState["pose"] = self.pose
+
+        dictRew = {}
+        dictRew["IG"] = self.IG
+        dictRew["c"] = 0
+        if self.detection:
+            self.done = True
+            dictRew["Detection"] = self.detection_reward
+        elif self.t >= self.max_steps:
+            self.done = True
+
+        self.reward = 0
+        for rew in dictRew.values():
+            self.reward += rew
+        dictRew["Sum"] = self.reward
+
+        self.dictLog = {}
+        if self.done:
+            self.dictLog["Done"] = 1
+        self.dictLog["Reward"] = dictRew
+        self.dictLog["State"] = dictState
+
+    def _get_pose(self):
         self.pose, oris = p.getBasePositionAndOrientation(self.robot)
+        self.pose_rc = self._xy2rc(*self.pose[:2])
         self.ori = Q2E(oris)[2]
         self.vel,self.avel = p.getBaseVelocity(self.robot)
 
-        self.entropy = self.entropy_decay * self.entropy
-        
-        self._get_scans()
+    def _setup_recording(self):
+        try:
+            plt.close("all")
+        except:
+            pass
+        self.fig,self.ax = plt.subplots()
+        self.fig.subplots_adjust(left=0,bottom=0,right=1,top=1,wspace=None,hspace=None)
+        self.ax.set_axis_off()
+        self.frames = []
+        self.fig_obs,self.ax_obs = plt.subplots()
+        self.fig_obs.subplots_adjust(left=0,bottom=0,right=1,top=1,wspace=None,hspace=None)
+        self.ax_obs.set_axis_off()
+        self.frames_obs = []
+        self.fps = int(self.policy_dt**-1)
+        self.writer = animation.FFMpegWriter(fps=self.fps) 
 
-        for hit in self.scans:
-            hr,hc = self._xy2rc(*hit[0])
-            sr,sc = self._xy2rc(*self.pose[:2])
-            if hit[1]:
-                self.entropy[hr,hc] = 1
-            free = self.bresenham((sr,sc),(hr,hc))
-            for f in free:
-                self.entropy[f[0],f[1]] = -1
-        self.entropy += torch.where(self.map==1,1,0)
+    def _save_entropy(self):
+        self.frames.append([self.ax.imshow(self.entropy.numpy(),animated=True,vmin=-1,vmax=1)])
+        self.frames_obs.append([self.ax_obs.imshow(self.crop.numpy(),animated=True,vmin=-1,vmax=1)])
 
-        if self.record:
-            self.frames.append([self.ax.imshow(self.entropy.numpy(),animated=True,vmin=-1,vmax=1)])
+    def _save_videos(self):
+        ani = animation.ArtistAnimation(self.fig,self.frames,interval=int(1000/self.fps),blit=True,repeat=False)
+        ani.save(PATH_DIR+self.log_dir+self.log_name,writer=self.writer)
 
-    def _get_rew(self):
-        r = 100*torch.rand((1))
-        if r.item() < 0.1:
-            self.done = True
+        ani_obs = animation.ArtistAnimation(self.fig_obs,self.frames_obs,interval=int(1000/self.fps),blit=True,repeat=False)
+        ani_obs.save(PATH_DIR+self.log_dir+self.log_name_obs,writer=self.writer)
+
+    def _get_IG(self):
+        self.IG = torch.sum(torch.abs(self.entropy)) - self.information
+        self.information = torch.sum(torch.abs(self.entropy))
+
+    def _get_crop(self):
+        # left side
+        if self.pose_rc[1] < self.obs_w:
+            self.crop = self.entropy[:,:self.obs_w]
+        #right side
+        elif self.h - self.pose_rc[1] < self.obs_w:
+            self.crop = self.entropy[:,-self.obs_w:]
+        #center crop on robot
         else:
-            self.done =  False
+            self.crop = self.entropy[:,self.pose_rc[1]-int(self.obs_w/2):self.pose_rc+int(self.obs_w/2)]
+        
+        assert self.crop.size() == (self.obs_w,self.obs_w)
+
+    def _decay_entropy(self):
+        self.entropy = self.entropy_decay * self.entropy
 
     def _get_scans(self):
         origins = [[self.pose[0],self.pose[1],0.5] for i in range(self.num_scans)]
@@ -198,13 +267,30 @@ class base_env(Env):
                 0.5
             ]
                 for i in range(self.num_scans)]
-        scan_data = p.rayTestBatch(origins,endpts,numThreads=0)
-        self.scans = []
+        scan_data = p.rayTestBatch(origins,endpts,numThreads=self.lidar_threads)
+        scans = []
+        # scans: [scanX,scanY,endpointCollision,targetHitDist]
         for i in range(self.num_scans):
-            if scan_data[i][0] != -1: #check if hit detected
-                self.scans.append([scan_data[i][3][:2],True])
+            if scan_data[i][0] == self.target:
+                dist = torch.linalg.norm(torch.tensor(scan_data[i][3][:2])).item()
+                scans.append([scan_data[i][3][:2],True,dist])
+            elif scan_data[i][0] != -1: #check if hit detected
+                scans.append([scan_data[i][3][:2],True,10])
             else:
-                self.scans.append([endpts[i][:2],False])
+                scans.append([endpts[i][:2],False,10])
+        
+        for hit in scans:
+            hr,hc = self._xy2rc(*hit[0])
+            sr,sc = self.pose_rc
+            if hit[1]:
+                self.entropy[hr,hc] = 1
+                if hit[2] < 3:
+                    self.detection = True
+            free = self._bresenham((sr,sc),(hr,hc))
+            for f in free:
+                self.entropy[f[0],f[1]] = -1
+        self.entropy += torch.where(self.map==1,1,0)
+        self.entropy = torch.clamp(self.entropy,-1,1)
 
     def _get_random_pose(self):
         while True:
@@ -237,7 +323,7 @@ class base_env(Env):
         y = self.resolution * (-r + (self.h + 1) / 2)
         return [x,y]
 
-    def bresenham(self,start,end):
+    def _bresenham(self,start,end):
         """
         Adapted from PythonRobotics:
         https://github.com/AtsushiSakai/PythonRobotics/blob/master/Mapping/lidar_to_grid_map/lidar_to_grid_map.py
@@ -285,7 +371,7 @@ class base_env(Env):
 
 if __name__ == "__main__":
 
-    env = base_env(True,PATH_DIR+"/cfg/base_env.yaml")
+    env = base_env(False,PATH_DIR+"/cfg/base_env.yaml")
     env.reset()
 
     for _ in range(1000000):
@@ -293,7 +379,7 @@ if __name__ == "__main__":
         env.step(action)
         if env.done:
             break
-        #time.sleep(0.01)
+        time.sleep(0.01)
 
 
         
