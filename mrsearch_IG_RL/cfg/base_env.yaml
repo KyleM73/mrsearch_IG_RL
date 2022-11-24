@@ -1,9 +1,11 @@
 simulation:
   horizon: 100
   dt: 0.01
+  pad_l: 5
+  scans: 360
 environment:
   height: 10
   width: 20
-  resolution: 0.1
+  resolution: 0.05
   filename: '/assets/map.png'
   urdf: '/assets/map.urdf'
