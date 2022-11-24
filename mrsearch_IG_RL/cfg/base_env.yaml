@@ -2,10 +2,20 @@ simulation:
   horizon: 100
   dt: 0.01
   pad_l: 5
-  scans: 360
+  entropy_decay: 0.9
 environment:
   height: 10
   width: 20
   resolution: 0.05
   filename: '/assets/map.png'
   urdf: '/assets/map.urdf'
+  target_urdf: '/assets/target.urdf'
+robot:
+  urdf: '/assets/robot.urdf'
+  width: 0.4 #x
+  depth: 0.4 #y
+  height: 0.4 #z
+  max_vel: 0.2
+lidar:
+  range: 10 #meters
+  FOV: 60 #degrees
