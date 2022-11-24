@@ -15,6 +15,7 @@ from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.monitor import Monitor
 
 import mrsearch_IG_RL
+from mrsearch_IG_RL.models import EntropyCnn
 
 def makeEnvs(env_id):
     def _init():
@@ -29,10 +30,11 @@ if __name__ == "__main__":
     train_steps = 1_000_000
 
     ## make parallel environments
-    env = SubprocVecEnv([makeEnvs(env_id) for i in range(num_envs)],start_method='fork')
+    #env = SubprocVecEnv([makeEnvs(env_id) for i in range(num_envs)],start_method='fork')
+    env = gym.make(env_id)
 
     ## train model
-    policy_kwargs = {'net_arch':[128]}
+    policy_kwargs = dict(features_extractor_class=EntropyCnn)
     model = PPO("CnnPolicy", env, policy_kwargs=policy_kwargs,verbose=1,use_sde=True)
     start_time = time.time()
     model.learn(total_timesteps=train_steps)

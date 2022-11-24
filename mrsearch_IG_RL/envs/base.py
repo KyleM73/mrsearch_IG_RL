@@ -17,7 +17,7 @@ import pybullet_utils.bullet_client as bc
 import pybullet_data
 
 import mrsearch_IG_RL
-from mrsearch_IG_RL import PATH_DIR
+from mrsearch_IG_RL import PATH_DIR,CFG_DIR
 
 class base_env(Env):
     def __init__(self,training=True,cfg=None):
@@ -86,7 +86,7 @@ class base_env(Env):
         # observe : cropped entropy map
         # act     : XY waypts, desired heading
         self.obs_w = min(self.h,self.w) + 1
-        self.obs_space = spaces.Box(low=-1,high=1,shape=(self.obs_w,self.obs_w),dtype=np.float32)
+        self.observation_space = spaces.Box(low=-1,high=1,shape=(1,self.obs_w,self.obs_w),dtype=np.float32)
         self.action_space = spaces.Box(low=-1,high=1,shape=(3,),dtype=np.float32)
 
         ## kernel
@@ -134,7 +134,7 @@ class base_env(Env):
         self._get_obs()
         self._get_rew()
 
-        return self.crop
+        return torch.unsqueeze(self.crop,0).numpy()
 
     def step(self,action):
         self._act(action)
@@ -145,7 +145,7 @@ class base_env(Env):
         if self.done and self.record:
             self._save_videos()
 
-        return self.crop, self.reward, self.done, self.dictLog
+        return torch.unsqueeze(self.crop,0).numpy(), self.reward, self.done, self.dictLog
 
     def _act(self,action):
         self.waypt = action[:2]
@@ -186,7 +186,7 @@ class base_env(Env):
         dictState["pose"] = self.pose
 
         dictRew = {}
-        dictRew["IG"] = self.IG
+        dictRew["IG"] = self.IG.item()
         dictRew["c"] = 0
         if self.detection:
             self.done = True
@@ -370,16 +370,16 @@ class base_env(Env):
         return points[1:-1] #do not include endpoints
 
 if __name__ == "__main__":
+    env = base_env(False,CFG_DIR+"/base.yaml")
+    check_env(env)
+    #env.reset()
 
-    env = base_env(False,PATH_DIR+"/cfg/base_env.yaml")
-    env.reset()
-
-    for _ in range(1000000):
-        action = torch.rand((3,)).tolist()
-        env.step(action)
-        if env.done:
-            break
-        time.sleep(0.01)
+    #for _ in range(1000000):
+    #    action = torch.rand((3,)).tolist()
+    #    env.step(action)
+    #    if env.done:
+    #        break
+    #    time.sleep(0.01)
 
 
         

@@ -1,8 +1,8 @@
 import os
 PATH_DIR = os.path.dirname(os.path.realpath(__file__))
+CFG_DIR = PATH_DIR+"/cfg"
 
-from mrsearch_IG_RL.envs import *
-from mrsearch_IG_RL.cfg import *
+from mrsearch_IG_RL.cfg import base_cfg
 
 from gym.envs.registration import register
 
@@ -11,9 +11,9 @@ register(
     id="rl_search-v0",
     # path to the class for creating the env
     # Note: entry_point also accept a class as input (and not only a string)
-    entry_point="mrsearch_IG_RL.envs.base_env:base_env",
+    entry_point="mrsearch_IG_RL.envs:base_env",
     kwargs={
     'training':True,
-    'cfg': PATH_DIR+"/cfg/base_env.yaml"
+    'cfg': CFG_DIR+base_cfg
     },
 )
