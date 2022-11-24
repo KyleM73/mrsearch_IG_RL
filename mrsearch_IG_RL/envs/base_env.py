@@ -4,6 +4,7 @@ import time
 import math
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 import torch
 
 from gym import spaces, Env
@@ -33,10 +34,14 @@ class base_env(Env):
             p.configureDebugVisualizer(p.COV_ENABLE_GUI,0)
 
         self.training = training
+        self.record = self.cfg["record"]
+        self.log_dir = self.cfg["log_dir"]
 
         ## simulation params
         self.horizon = self.cfg["simulation"]["horizon"]
         self.dt = self.cfg["simulation"]["dt"]
+        self.policy_dt = self.cfg["simulation"]["policy_dt"]
+        self.repeat_action = int(self.policy_dt / self.dt)
         self.pad_l = self.cfg["simulation"]["pad_l"]
         self.entropy_decay = self.cfg["simulation"]["entropy_decay"]
         
@@ -54,17 +59,22 @@ class base_env(Env):
         self.robot_width = self.cfg["robot"]["width"]
         self.robot_depth = self.cfg["robot"]["depth"]
         self.robot_height = self.cfg["robot"]["height"]
+        self.max_accel = self.cfg["robot"]["max_linear_accel"]
+        self.max_vel = self.cfg["robot"]["max_linear_vel"]
+        self.max_aaccel = self.cfg["robot"]["max_angular_accel"]
+        self.max_avel = self.cfg["robot"]["max_angular_vel"]
 
         ## LiDAR params
+        self.scan_density_coef = self.cfg["lidar"]["density"]
         self.scan_range = self.cfg["lidar"]["range"]
         self.FOV = 2 * math.pi * self.cfg["lidar"]["FOV"] / 360 #deg2rad
-        self.scan_density = 2 * math.pi / math.atan(self.resolution/self.scan_range)/2 # resolution / max(height, width)
+        self.scan_density = self.scan_density_coef * 2 * math.pi / math.atan(self.resolution/self.scan_range) # resolution / max(height, width)
         self.num_scans = int(self.FOV / (2 * math.pi) * self.scan_density)
         self.scan_angle = self.FOV / self.num_scans #rad
 
         ## model I/O
         self.obs_space = spaces.Box(low=-1,high=1,shape=(self.h,self.w),dtype=np.float32)
-        self.action_space = spaces.Box(low=0,high=1,shape=(2,),dtype=np.float32)
+        self.action_space = spaces.Box(low=-1,high=1,shape=(3,),dtype=np.float32)
 
         ## kernel
         self.k = torch.ones((10,10))
@@ -101,25 +111,61 @@ class base_env(Env):
         ## reset entropy
         self.entropy = torch.where(self.map==1,1,0)
 
+        ## setup recording
+        if self.record:
+            try:
+                plt.close("all")
+            except:
+                pass
+            self.fig,self.ax = plt.subplots()
+            self.fig.subplots_adjust(left=0,bottom=0,right=1,top=1,wspace=None,hspace=None)
+            self.ax.set_axis_off()
+            self.frames = []
+            self.fps = int(self.policy_dt**-1)
+            self.writer = animation.FFMpegWriter(fps=self.fps) 
+
         self._get_obs()
         self._get_rew()
 
     def step(self,action):
 
-        self.action = action
+        self._act(action)
+        self._get_obs()
+        self._get_rew()
 
-        self.client.stepSimulation()
+        if self.done and self.record:
+            ani = animation.ArtistAnimation(self.fig,self.frames,interval=int(1000/self.fps),blit=True,repeat=False)
+            ani.save(PATH_DIR+self.log_dir+"entropy0.mp4",writer=self.writer)
 
-    def render(self):
-        fig = plt.figure()
-        im = plt.imshow(self.entropy)
-        plt.show()
+    def _act(self,action):
+
+        self.waypt = action[:2]
+        self.heading = math.pi * action[2]
+
+        norm = torch.linalg.norm(torch.tensor(self.waypt)).item()
+        self.force = [self.waypt[0],self.waypt[1]/norm,0]
+
+        if self.heading > self.ori:
+            self.torque = [0,0,self.max_aaccel]
+        elif self.heading < self.ori:
+            self.torque = [0,0,-self.max_aaccel]
+        else:
+            self.torque = [0,0,0]
+
+        for _ in range(self.repeat_action):
+            if torch.linalg.norm(torch.tensor(self.vel)).item() < self.max_vel:
+                p.applyExternalForce(self.robot,-1,self.force,[0,0,0],p.LINK_FRAME)
+            if torch.linalg.norm(torch.tensor(self.avel)).item() < self.max_avel:
+                p.applyExternalTorque(self.robot,-1,self.torque,p.LINK_FRAME)
+            self.client.stepSimulation()
 
     def _get_obs(self):
 
         self.pose, oris = p.getBasePositionAndOrientation(self.robot)
         self.ori = Q2E(oris)[2]
         self.vel,self.avel = p.getBaseVelocity(self.robot)
+
+        self.entropy = self.entropy_decay * self.entropy
         
         self._get_scans()
 
@@ -131,10 +177,17 @@ class base_env(Env):
             free = self.bresenham((sr,sc),(hr,hc))
             for f in free:
                 self.entropy[f[0],f[1]] = -1
-        self.entropy = torch.where(self.map==1,1,self.entropy)
+        self.entropy += torch.where(self.map==1,1,0)
+
+        if self.record:
+            self.frames.append([self.ax.imshow(self.entropy.numpy(),animated=True,vmin=-1,vmax=1)])
 
     def _get_rew(self):
-        pass
+        r = 100*torch.rand((1))
+        if r.item() < 0.1:
+            self.done = True
+        else:
+            self.done =  False
 
     def _get_scans(self):
         origins = [[self.pose[0],self.pose[1],0.5] for i in range(self.num_scans)]
@@ -149,9 +202,7 @@ class base_env(Env):
         self.scans = []
         for i in range(self.num_scans):
             if scan_data[i][0] != -1: #check if hit detected
-                #dist = (sum([(scan_data[i][3][j]-self.pose[j])**2 for j in range(2)]))**0.5
-                #ang = i*self.scan_angle + self.ori - self.FOV/2
-                self.scans.append([scan_data[i][3][:2],True]) #only append hit location, distance, and angle
+                self.scans.append([scan_data[i][3][:2],True])
             else:
                 self.scans.append([endpts[i][:2],False])
 
@@ -234,13 +285,15 @@ class base_env(Env):
 
 if __name__ == "__main__":
 
-    env = base_env(False,PATH_DIR+"/cfg/base_env.yaml")
+    env = base_env(True,PATH_DIR+"/cfg/base_env.yaml")
     env.reset()
-    env._get_scans()
 
     for _ in range(1000000):
-        env.step()
-        time.sleep(0.01)
+        action = torch.rand((3,)).tolist()
+        env.step(action)
+        if env.done:
+            break
+        #time.sleep(0.01)
 
 
         

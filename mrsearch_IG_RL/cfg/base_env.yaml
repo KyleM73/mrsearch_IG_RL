@@ -1,8 +1,11 @@
+record: True
+log_dir: '/log/'
 simulation:
   horizon: 100
   dt: 0.01
+  policy_dt: 0.1
   pad_l: 5
-  entropy_decay: 0.9
+  entropy_decay: 0.99
 environment:
   height: 10
   width: 20
@@ -15,7 +18,11 @@ robot:
   width: 0.4 #x
   depth: 0.4 #y
   height: 0.4 #z
-  max_vel: 0.2
+  max_linear_accel: 0.1
+  max_linear_vel: 0.2
+  max_angular_accel: 0.1
+  max_angular_vel: 0.2
 lidar:
+  density: 0.2
   range: 10 #meters
   FOV: 60 #degrees
