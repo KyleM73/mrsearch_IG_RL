@@ -1,5 +1,4 @@
 record:
-  record: False
   log_dir: '/log/videos'
   log_name: '/test.mp4'
   log_name_obs: '/crop.mp4'

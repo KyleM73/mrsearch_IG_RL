@@ -8,8 +8,6 @@ repo for multi-robot RL search with information gains
     (search) mrsearch_IG_RL % pip install -e .
     (search) mrsearch_IG_RL % mkdir -p mrsearch_IG_RL/log/videos && mkdir -p mrsearch_IG_RL/log/logs
 ## Train
-go to ``mrsearch_IG_RL/mrsearch_IG_RL/cfg/base.yaml`` and set record: False
-
 go to ``mrsearch_IG_RL/mrsearch_IG_RL/scripts/train.py`` and set the appopriate device on line 31 (options are ``'cpu'``,``'cuda'``,``'mps'``)
 
     (search) mrsearch_IG_RL % cd mrsearch_IG_RL
@@ -39,15 +37,13 @@ on more powerful gpus, start by increasing ``num_envs`` until hitting max files 
 
 the only other param that meaningfully affects memory performance is ``lidar/density`` in ``mrsearch_IG_RL/mrsearch_IG_RL/cfg/base.yaml`` which controls the number of lidar scans.
 ## Evaluate
-go to ``mrsearch_IG_RL/mrsearch_IG_RL/cfg/base.yaml`` and set record: True
-
     (search) mrsearch_IG_RL/mrsearch_IG_RL % python scripts/evaluate.py /log/logs/{date}/model.zip
 
 by default evaluation is not displayed - only videos of the lidar coverage are saved to ``mrsearch_IG_RL/mrsearch_IG_RL/log/videos/{date}.mp4``
 
 to display simulation during evaluation go to ``mrsearch_IG_RL/mrsearch_IG_RL/scripts/evaluate.py`` and set:
 
-    env = mrsearch_IG_RL.envs.base_env(False,CFG_DIR+"/base.yaml"
+    env = mrsearch_IG_RL.envs.base_env(False,True,CFG_DIR+"/base.yaml"
 on line 13 and uncomment the last line of the for loop:
 
     time.sleep(0.01)

@@ -15,7 +15,8 @@ register(
     # Note: entry_point also accept a class as input (and not only a string)
     entry_point="mrsearch_IG_RL.envs:base_env",
     kwargs={
-    'training':True,
+    'training' : True,
+    'record' : False,
     'cfg': CFG_DIR+base_cfg
     },
 )

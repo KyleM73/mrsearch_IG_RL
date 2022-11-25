@@ -21,7 +21,7 @@ import mrsearch_IG_RL
 from mrsearch_IG_RL import PATH_DIR,CFG_DIR
 
 class base_env(Env):
-    def __init__(self,training=True,cfg=None):
+    def __init__(self,training=True,record=False,cfg=None):
         self.dt = datetime.datetime.now().strftime('%m%d_%H%M')
         if isinstance(cfg,str):
             assert os.path.exists(cfg), "configuration file specified does not exist"
@@ -37,6 +37,7 @@ class base_env(Env):
             p.configureDebugVisualizer(p.COV_ENABLE_GUI,0)
 
         self.training = training
+        self.record = record
         self._load_config()
 
         ## model I/O
@@ -332,7 +333,6 @@ class base_env(Env):
 
     def _load_config(self):
         ## record params
-        self.record = self.cfg["record"]["record"]
         self.log_dir = self.cfg["record"]["log_dir"]
         self.log_name = "/"+self.dt+".mp4" #self.cfg["record"]["log_name"]
         self.log_name_obs = "/"+self.dt+"_crop.mp4" #self.cfg["record"]["log_name_obs"]
