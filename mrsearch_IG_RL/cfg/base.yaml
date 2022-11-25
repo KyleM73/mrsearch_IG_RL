@@ -31,4 +31,4 @@ lidar:
   FOV: 120 #degrees
   threads: 0 #-1 is single threaded, 0 is 'all', n is exactly n threads'
 rewards:
-  detection: 100
+  detection: 1000
