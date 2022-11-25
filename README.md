@@ -3,7 +3,7 @@ repo for multi-robot RL search with information gains
 ## Setup
     / % conda create -n search python=3.9.7
     / % conda activate search
-    / % git clone (...)
+    (search) / % git clone (...)
     (search) / % cd mrsearch_IG_RL
     (search) mrsearch_IG_RL % pip install -e .
     (search) mrsearch_IG_RL % mkdir -p mrsearch_IG_RL/log/videos && mkdir -p mrsearch_IG_RL/log/logs
