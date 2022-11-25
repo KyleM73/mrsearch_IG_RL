@@ -26,7 +26,7 @@ class base_env(Env):
         if isinstance(cfg,str):
             assert os.path.exists(cfg), "configuration file specified does not exist"
             with open(cfg, 'r') as stream:
-                self.cfg = yaml.safe_load(stream)#,Loader=yaml.FullLoader)
+                self.cfg = yaml.safe_load(stream)
         else:
             raise AssertionError("no configuration file specified")
 
@@ -46,9 +46,6 @@ class base_env(Env):
         self.obs_w = min(self.h,self.w) + 1
         self.observation_space = spaces.Box(low=-1,high=1,shape=(1,self.obs_w,self.obs_w),dtype=np.float32)
         self.action_space = spaces.Box(low=-1,high=1,shape=(3,),dtype=np.float32)
-
-        ## kernel
-        self.k = torch.ones((10,10))
 
     def reset(self):
         ## initiate simulation
@@ -80,9 +77,9 @@ class base_env(Env):
 
         ## reset entropy
         self.entropy = torch.where(self.map==1,1,0)
-        self.information = torch.sum(torch.abs(self.entropy))
-        self.information0 = self.information.clone()
+        self.information = None
         self.detection = False
+        self.collision = False
         self.done = False
         self.t = 0
 
@@ -108,7 +105,7 @@ class base_env(Env):
 
     def _act(self,action):
         self.force = [self.max_accel*action[0],self.max_accel*action[1],0]
-        self.torque = [0,0,self.max_aaccel*action[2]]
+        self.torque = [0,0,self.mass_matrix*self.max_aaccel*action[2]]
         for i in range(len(action)):
             if self.vel[i] + self.dt*self.force[i] > self.max_vel:
                 self.force[i] = 0
@@ -119,6 +116,9 @@ class base_env(Env):
         
         for _ in range(self.repeat_action):
             self.client.stepSimulation()
+            ctx = p.getContactPoints(self.robot,self.walls)
+            if len(ctx) > 0:
+                self.collision = True
 
     def _get_obs(self):
         self._get_pose()
@@ -142,6 +142,9 @@ class base_env(Env):
         if self.detection:
             self.done = True
             dictRew["Detection"] = self.detection_reward
+        elif self.collision:
+            self.done = True
+            dictRew["Collision"] = self.collision_reward
         elif self.t >= self.max_steps:
             self.done = True
 
@@ -198,7 +201,10 @@ class base_env(Env):
         ani_obs.save(PATH_DIR+self.log_dir+self.log_name_obs,writer=self.writer)
 
     def _get_IG(self):
-        self.IG = torch.sum(torch.abs(self.entropy)) - self.information
+        if self.information is None:
+            self.IG = torch.zeros((1))
+        else:
+            self.IG = torch.sum(torch.abs(self.entropy)) - self.information
         self.information = torch.sum(torch.abs(self.entropy))
 
     def _get_crop(self):
@@ -246,7 +252,7 @@ class base_env(Env):
             sr,sc = self.pose_rc
             if hit[1]:
                 self.entropy[hr,hc] = 1
-                if hit[2] < 3:
+                if hit[2] < self.target_threshold:
                     self.detection = True
             free = self._bresenham((sr,sc),(hr,hc))
             for f in free:
@@ -363,6 +369,7 @@ class base_env(Env):
         self.robot_width = self.cfg["robot"]["width"]
         self.robot_depth = self.cfg["robot"]["depth"]
         self.robot_height = self.cfg["robot"]["height"]
+        self.mass_matrix = torch.linalg.norm(torch.tensor([self.robot_width,self.robot_depth,self.robot_height]).item()
         self.max_accel = self.cfg["robot"]["max_linear_accel"]
         self.max_vel = self.cfg["robot"]["max_linear_vel"]
         self.max_aaccel = self.cfg["robot"]["max_angular_accel"]
@@ -371,6 +378,7 @@ class base_env(Env):
         ## LiDAR params
         self.scan_density_coef = self.cfg["lidar"]["density"]
         self.scan_range = self.cfg["lidar"]["range"]
+        self.target_threshold = self.cfg["lidar"]["target_threshold"]
         self.FOV = 2 * math.pi * self.cfg["lidar"]["FOV"] / 360 #deg2rad
         self.scan_density = self.scan_density_coef * 2 * math.pi / math.atan(self.resolution/self.scan_range) # resolution / max(height, width)
         self.num_scans = int(self.FOV / (2 * math.pi) * self.scan_density)
@@ -379,8 +387,12 @@ class base_env(Env):
 
         ## reward params
         self.detection_reward = self.cfg["rewards"]["detection"]
+        self.collision_reward = self.cfg["rewards"]["collision"]
         self.vel_coef =  self.cfg["rewards"]["vel_coef"]
         self.avel_coef = self.cfg["rewards"]["avel_coef"]
+
+        ## kernel
+        self.k = torch.ones((10,10))
 
 if __name__ == "__main__":
     env = base_env(False,CFG_DIR+"/base.yaml")

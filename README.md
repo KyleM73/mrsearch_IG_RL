@@ -41,12 +41,12 @@ the only other param that meaningfully affects memory performance is ``lidar/den
 
 by default evaluation is not displayed - only videos of the lidar coverage are saved to ``mrsearch_IG_RL/mrsearch_IG_RL/log/videos/{date}.mp4``
 
-to display simulation during evaluation go to ``mrsearch_IG_RL/mrsearch_IG_RL/scripts/evaluate.py`` and set:
+to display simulation during evaluation run with CLI flag ``-p``:
 
-    env = mrsearch_IG_RL.envs.base_env(False,True,CFG_DIR+"/base.yaml"
-on line 13 and uncomment the last line of the for loop:
+    (search) mrsearch_IG_RL/mrsearch_IG_RL % python scripts/evaluate.py /log/logs/{date}/model.zip -p
+to turn off video saving during evaluation run with CLI flag ``-n``:
 
-    time.sleep(env.dt)
+    (search) mrsearch_IG_RL/mrsearch_IG_RL % python scripts/evaluate.py /log/logs/{date}/model.zip -n
 
 ## Tuning
 see config params at ``mrsearch_IG_RL/mrsearch_IG_RL/cfg/base.yaml``
