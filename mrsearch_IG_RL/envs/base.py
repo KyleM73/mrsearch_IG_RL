@@ -20,7 +20,7 @@ import mrsearch_IG_RL
 from mrsearch_IG_RL import PATH_DIR,CFG_DIR
 
 class base_env(Env):
-    def __init__(self,training=True,cfg=None):
+    def __init__(self,training=True,cfg=None,record_override=False):
         if isinstance(cfg,str):
             assert os.path.exists(cfg), "configuration file specified does not exist"
             with open(cfg, 'r') as stream:
@@ -35,52 +35,9 @@ class base_env(Env):
             p.configureDebugVisualizer(p.COV_ENABLE_GUI,0)
 
         self.training = training
-
-        ## record params
-        self.record = self.cfg["record"]["record"]
-        self.log_dir = self.cfg["record"]["log_dir"]
-        self.log_name = self.cfg["record"]["log_name"]
-        self.log_name_obs = self.cfg["record"]["log_name_obs"]
-
-        ## simulation params
-        self.horizon = self.cfg["simulation"]["horizon"]
-        self.dt = self.cfg["simulation"]["dt"]
-        self.policy_dt = self.cfg["simulation"]["policy_dt"]
-        self.max_steps = int(self.horizon / self.policy_dt)
-        self.repeat_action = int(self.policy_dt / self.dt)
-        self.pad_l = self.cfg["simulation"]["pad_l"]
-        self.entropy_decay = self.cfg["simulation"]["entropy_decay"]
-        
-        ## environment params
-        self.resolution = self.cfg["environment"]["resolution"]
-        self.h = int(self.cfg["environment"]["height"] / self.resolution)
-        self.w = int(self.cfg["environment"]["width"] / self.resolution)
-        self.map_fname = self.cfg["environment"]["filename"]
-        self.map = torch.from_numpy(plt.imread(PATH_DIR+self.map_fname)[:,:,-1])
-        self.map_urdf = self.cfg["environment"]["urdf"]
-        self.target_urdf = self.cfg["environment"]["target_urdf"]
-        
-        ## robot params
-        self.robot_urdf = self.cfg["robot"]["urdf"]
-        self.robot_width = self.cfg["robot"]["width"]
-        self.robot_depth = self.cfg["robot"]["depth"]
-        self.robot_height = self.cfg["robot"]["height"]
-        self.max_accel = self.cfg["robot"]["max_linear_accel"]
-        self.max_vel = self.cfg["robot"]["max_linear_vel"]
-        self.max_aaccel = self.cfg["robot"]["max_angular_accel"]
-        self.max_avel = self.cfg["robot"]["max_angular_vel"]
-
-        ## LiDAR params
-        self.scan_density_coef = self.cfg["lidar"]["density"]
-        self.scan_range = self.cfg["lidar"]["range"]
-        self.FOV = 2 * math.pi * self.cfg["lidar"]["FOV"] / 360 #deg2rad
-        self.scan_density = self.scan_density_coef * 2 * math.pi / math.atan(self.resolution/self.scan_range) # resolution / max(height, width)
-        self.num_scans = int(self.FOV / (2 * math.pi) * self.scan_density)
-        self.scan_angle = self.FOV / self.num_scans #rad
-        self.lidar_threads = self.cfg["lidar"]["threads"]
-
-        ## reward params
-        self.detection_reward = self.cfg["rewards"]["detection"]
+        self._load_config()
+        if record_override:
+            self.record = True
 
         ## model I/O
         # observe : cropped entropy map
@@ -164,10 +121,10 @@ class base_env(Env):
 
         for _ in range(self.repeat_action):
             ## fix this
-            if torch.linalg.norm(torch.tensor(self.vel)).item() < self.max_vel:
-                p.applyExternalForce(self.robot,-1,self.force,[0,0,0],p.LINK_FRAME)
-            if torch.linalg.norm(torch.tensor(self.avel)).item() < self.max_avel:
-                p.applyExternalTorque(self.robot,-1,self.torque,p.LINK_FRAME)
+            #if torch.linalg.norm(torch.tensor(self.vel)).item() < self.max_vel:
+            p.applyExternalForce(self.robot,-1,self.force,[0,0,0],p.LINK_FRAME)
+            #if torch.linalg.norm(torch.tensor(self.avel)).item() < self.max_avel:
+            p.applyExternalTorque(self.robot,-1,self.torque,p.LINK_FRAME)
             self.client.stepSimulation()
 
     def _get_obs(self):
@@ -301,6 +258,9 @@ class base_env(Env):
                 ori = 2*math.pi*torch.rand((1)).item()-math.pi
                 return [pose,ori]
 
+    def _is_done(self):
+        return self.done
+
     def _is_valid(self,r,c,convert=False):
         if convert:
             r,c = self._xy2rc(r,c) #xy -> rc
@@ -369,17 +329,57 @@ class base_env(Env):
             points.reverse()
         return points[1:-1] #do not include endpoints
 
+    def _load_config(self):
+        ## record params
+        self.record = self.cfg["record"]["record"]
+        self.log_dir = self.cfg["record"]["log_dir"]
+        self.log_name = self.cfg["record"]["log_name"]
+        self.log_name_obs = self.cfg["record"]["log_name_obs"]
+
+        ## simulation params
+        self.horizon = self.cfg["simulation"]["horizon"]
+        self.dt = self.cfg["simulation"]["dt"]
+        self.policy_dt = self.cfg["simulation"]["policy_dt"]
+        self.max_steps = int(self.horizon / self.policy_dt)
+        self.repeat_action = int(self.policy_dt / self.dt)
+        self.pad_l = self.cfg["simulation"]["pad_l"]
+        self.entropy_decay = self.cfg["simulation"]["entropy_decay"]
+        
+        ## environment params
+        self.resolution = self.cfg["environment"]["resolution"]
+        self.h = int(self.cfg["environment"]["height"] / self.resolution)
+        self.w = int(self.cfg["environment"]["width"] / self.resolution)
+        self.map_fname = self.cfg["environment"]["filename"]
+        self.map = torch.from_numpy(plt.imread(PATH_DIR+self.map_fname)[:,:,-1])
+        self.map_urdf = self.cfg["environment"]["urdf"]
+        self.target_urdf = self.cfg["environment"]["target_urdf"]
+        
+        ## robot params
+        self.robot_urdf = self.cfg["robot"]["urdf"]
+        self.robot_width = self.cfg["robot"]["width"]
+        self.robot_depth = self.cfg["robot"]["depth"]
+        self.robot_height = self.cfg["robot"]["height"]
+        self.max_accel = self.cfg["robot"]["max_linear_accel"]
+        self.max_vel = self.cfg["robot"]["max_linear_vel"]
+        self.max_aaccel = self.cfg["robot"]["max_angular_accel"]
+        self.max_avel = self.cfg["robot"]["max_angular_vel"]
+
+        ## LiDAR params
+        self.scan_density_coef = self.cfg["lidar"]["density"]
+        self.scan_range = self.cfg["lidar"]["range"]
+        self.FOV = 2 * math.pi * self.cfg["lidar"]["FOV"] / 360 #deg2rad
+        self.scan_density = self.scan_density_coef * 2 * math.pi / math.atan(self.resolution/self.scan_range) # resolution / max(height, width)
+        self.num_scans = int(self.FOV / (2 * math.pi) * self.scan_density)
+        self.scan_angle = self.FOV / self.num_scans #rad
+        self.lidar_threads = self.cfg["lidar"]["threads"]
+
+        ## reward params
+        self.detection_reward = self.cfg["rewards"]["detection"]
+
 if __name__ == "__main__":
     env = base_env(False,CFG_DIR+"/base.yaml")
     check_env(env)
-    #env.reset()
 
-    #for _ in range(1000000):
-    #    action = torch.rand((3,)).tolist()
-    #    env.step(action)
-    #    if env.done:
-    #        break
-    #    time.sleep(0.01)
 
 
         
