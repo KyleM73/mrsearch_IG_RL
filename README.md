@@ -6,6 +6,7 @@ repo for multi-robot RL search with information gains
     / % git clone (...)
     (search) / % cd mrsearch_IG_RL
     (search) mrsearch_IG_RL % pip install -e .
+    (search) mrsearch_IG_RL % mkdir mrsearch_IG_RL/log/videos && mkdir mrsearch_IG_RL/log/logs
 ## Train
 go to ``mrsearch_IG_RL/mrsearch_IG_RL/cfg/base.yaml`` and set record: False
 
