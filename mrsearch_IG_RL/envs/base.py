@@ -1,6 +1,7 @@
 import os
 import yaml
 import time
+import datetime
 import math
 import numpy as np
 import matplotlib.pyplot as plt
@@ -20,7 +21,8 @@ import mrsearch_IG_RL
 from mrsearch_IG_RL import PATH_DIR,CFG_DIR
 
 class base_env(Env):
-    def __init__(self,training=True,cfg=None,record_override=False):
+    def __init__(self,training=True,cfg=None):
+        self.dt = datetime.datetime.now().strftime('%m%d_%H%M')
         if isinstance(cfg,str):
             assert os.path.exists(cfg), "configuration file specified does not exist"
             with open(cfg, 'r') as stream:
@@ -36,8 +38,6 @@ class base_env(Env):
 
         self.training = training
         self._load_config()
-        if record_override:
-            self.record = True
 
         ## model I/O
         # observe : cropped entropy map
@@ -80,6 +80,7 @@ class base_env(Env):
         ## reset entropy
         self.entropy = torch.where(self.map==1,1,0)
         self.information = torch.sum(torch.abs(self.entropy))
+        self.information0 = self.information.clone()
         self.detection = False
         self.done = False
         self.t = 0
@@ -105,26 +106,17 @@ class base_env(Env):
         return torch.unsqueeze(self.crop,0).numpy(), self.reward, self.done, self.dictLog
 
     def _act(self,action):
-        self.waypt = action[:2]
-        self.heading = math.pi * action[2]
-
-        norm = torch.linalg.norm(torch.tensor(self.waypt)).item()
-        self.force = [self.waypt[0]/(norm+1e-4),self.waypt[1]/(norm+1e-4),0]
-
-        # assume RHR
-        if self.heading > 0:
-            self.torque = [0,0,self.max_aaccel]
-        elif self.heading < 0:
-            self.torque = [0,0,-self.max_aaccel]
-        else:
-            self.torque = [0,0,0]
-
+        self.force = [self.max_accel*action[0],self.max_accel*action[1],0]
+        self.torque = [0,0,self.max_aaccel*action[2]]
+        for i in range(len(action)):
+            if self.vel[i] + self.dt*self.force[i] > self.max_vel:
+                self.force[i] = 0
+            if self.avel[i] + self.dt*self.torque[i] > self.max_avel:
+                self.torque[i] = 0
+        p.applyExternalForce(self.robot,-1,self.force,[0,0,0],p.LINK_FRAME)
+        p.applyExternalTorque(self.robot,-1,self.torque,p.LINK_FRAME)
+        
         for _ in range(self.repeat_action):
-            ## fix this
-            #if torch.linalg.norm(torch.tensor(self.vel)).item() < self.max_vel:
-            p.applyExternalForce(self.robot,-1,self.force,[0,0,0],p.LINK_FRAME)
-            #if torch.linalg.norm(torch.tensor(self.avel)).item() < self.max_avel:
-            p.applyExternalTorque(self.robot,-1,self.torque,p.LINK_FRAME)
             self.client.stepSimulation()
 
     def _get_obs(self):
@@ -144,7 +136,8 @@ class base_env(Env):
 
         dictRew = {}
         dictRew["IG"] = self.IG.item()
-        dictRew["c"] = 0
+        dictRew["vel"] = -torch.linalg.norm(torch.tensor(self.vel)).item()
+        dictRew["avel"] = -torch.linalg.norm(torch.tensor(self.avel)).item()
         if self.detection:
             self.done = True
             dictRew["Detection"] = self.detection_reward
@@ -168,6 +161,9 @@ class base_env(Env):
         self.ori = Q2E(oris)[2]
         self.vel,self.avel = p.getBaseVelocity(self.robot)
 
+        self.target_pose,_ = p.getBasePositionAndOrientation(self.target)
+        self.target_pose_rc = self._xy2rc(*self.target_pose[:2])
+
     def _setup_recording(self):
         try:
             plt.close("all")
@@ -185,7 +181,12 @@ class base_env(Env):
         self.writer = animation.FFMpegWriter(fps=self.fps) 
 
     def _save_entropy(self):
-        self.frames.append([self.ax.imshow(self.entropy.numpy(),animated=True,vmin=-1,vmax=1)])
+        r,c = self.pose_rc
+        tr,tc = self.target_pose_rc
+        entropy_marked = self.entropy.clone()
+        entropy_marked[r-1:r+2,c-1:c+2] = 1
+        entropy_marked[tr-2:tr+4,tc-2:tc+4] = 1
+        self.frames.append([self.ax.imshow(entropy_marked.numpy(),animated=True,vmin=-1,vmax=1)])
         self.frames_obs.append([self.ax_obs.imshow(self.crop.numpy(),animated=True,vmin=-1,vmax=1)])
 
     def _save_videos(self):
@@ -333,8 +334,8 @@ class base_env(Env):
         ## record params
         self.record = self.cfg["record"]["record"]
         self.log_dir = self.cfg["record"]["log_dir"]
-        self.log_name = self.cfg["record"]["log_name"]
-        self.log_name_obs = self.cfg["record"]["log_name_obs"]
+        self.log_name = "/"+self.dt+".mp4" #self.cfg["record"]["log_name"]
+        self.log_name_obs = "/"+self.dt+"_crop.mp4" #self.cfg["record"]["log_name_obs"]
 
         ## simulation params
         self.horizon = self.cfg["simulation"]["horizon"]

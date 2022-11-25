@@ -8,7 +8,7 @@ simulation:
   dt: 0.01
   policy_dt: 0.1
   pad_l: 5
-  entropy_decay: 0.995
+  entropy_decay: 0.997
 environment:
   height: 10
   width: 20
@@ -28,7 +28,7 @@ robot:
 lidar:
   density: 0.2
   range: 10 #meters
-  FOV: 60 #degrees
+  FOV: 120 #degrees
   threads: 0 #-1 is single threaded, 0 is 'all', n is exactly n threads'
 rewards:
   detection: 100
