@@ -202,15 +202,18 @@ class base_env(Env):
         self.information = torch.sum(torch.abs(self.entropy))
 
     def _get_crop(self):
+        r,c = self.pose_rc
+        entropy_marked = self.entropy.clone()
+        entropy_marked[r-1:r+2,c-1:c+2] = 1
         # left side
         if self.pose_rc[1] < self.obs_w:
-            self.crop = self.entropy[:,:self.obs_w]
+            self.crop = entropy_marked[:,:self.obs_w]
         #right side
         elif self.h - self.pose_rc[1] < self.obs_w:
-            self.crop = self.entropy[:,-self.obs_w:]
+            self.crop = entropy_marked[:,-self.obs_w:]
         #center crop on robot
         else:
-            self.crop = self.entropy[:,self.pose_rc[1]-int(self.obs_w/2):self.pose_rc+int(self.obs_w/2)]
+            self.crop = entropy_marked[:,self.pose_rc[1]-int(self.obs_w/2):self.pose_rc+int(self.obs_w/2)]
         
         assert self.crop.size() == (self.obs_w,self.obs_w)
 
