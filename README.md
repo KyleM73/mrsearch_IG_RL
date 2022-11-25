@@ -41,7 +41,7 @@ the only other param that meaningfully affects memory performance is ``lidar/den
 ## Evaluate
 go to ``mrsearch_IG_RL/mrsearch_IG_RL/cfg/base.yaml`` and set record: True
 
-by default evaluation is not displayed - only the videos of the lidar coverage are saved to ``mrsearch_IG_RL/mrsearch_IG_RL/log/videos/{date}.mp4``
+by default evaluation is not displayed - only videos of the lidar coverage are saved to ``mrsearch_IG_RL/mrsearch_IG_RL/log/videos/{date}.mp4``
 
 to display simulation during evaluation go to ``mrsearch_IG_RL/mrsearch_IG_RL/scripts/evaluate.py`` and set:
 
