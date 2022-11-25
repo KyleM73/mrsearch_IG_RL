@@ -54,5 +54,3 @@ if __name__ == "__main__":
     ## save  model
     save_path = '{}/{}'.format(tb_log,"model")
     model.save(save_path)
-
-

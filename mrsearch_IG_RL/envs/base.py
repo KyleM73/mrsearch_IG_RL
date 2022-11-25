@@ -380,16 +380,3 @@ class base_env(Env):
 if __name__ == "__main__":
     env = base_env(False,CFG_DIR+"/base.yaml")
     check_env(env)
-
-
-
-        
-
-
-
-        
-
-
-
-
-
