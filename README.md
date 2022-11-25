@@ -17,7 +17,27 @@ go to ``mrsearch_IG_RL/mrsearch_IG_RL/scripts/train.py`` and set the appopriate 
 to view tensorboard logs during traing, launch tensorboard in a separate terminal with:
 
     (search) mrsearch_IG_RL/mrsearch_IG_RL % tensorboard --logdir log/logs/{date}
-training 1 million timesteps on my m1 macbookpro takes just over an hour
+### Train Tuning
+there are three params in ``mrsearch_IG_RL/mrsearch_IG_RL/scripts/train.py`` tht control training performance:
+
+    num_envs: the number of parallel environments
+    n_steps: the number of steps each environment takes before updating the model weights
+    batch_size: the total buffer size of the (s,a,r) tuples passed to train the model
+with the constraint that ``buffer_size=num_envs*n_steps=batch_size``. with ``cpu`` training, training speed is set by cpu cache. the default params are:
+
+    num_envs = 1
+    n_steps = 64
+    batch_size = 64
+with ``gpu`` and ``mps`` the limiting factor is vRAM and RAM, respectively. the goal is to increase ``batch_size`` until hitting a memory error and then back off slightly. the limit on my macbookpro training on ``mps`` is:
+
+    num_envs = 32
+    n_steps = 64
+    batch_size = 2048
+training 1 million timesteps on my m1 macbookpro takes about an hour and a half.
+
+on more powerful gpus, start by increasing ``num_envs`` until hitting max files open error. reduce ``num_envs`` by a factor of 2 after hitting the error and increase ``n_steps`` until hitting an out of memory error. reduce ``n_steps`` byt a factor of 2 once the error is hit. always set ``batch_size`` accordingly as ``batch_size=num_envs*n_steps``.
+
+the only other param that meaningfully affects memory performance is ``lidar/density`` in ``mrsearch_IG_RL/mrsearch_IG_RL/cfg/base.yaml`` which controls the number of lidar scans.
 ## Evaluate
 go to ``mrsearch_IG_RL/mrsearch_IG_RL/cfg/base.yaml`` and set record: True
 
