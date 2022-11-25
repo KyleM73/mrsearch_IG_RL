@@ -26,8 +26,9 @@ to display simulation during evaluation set:
 on line 13 and uncomment the last line of the for loop:
 
     time.sleep(0.01)
-    (search) mrsearch_IG_RL/mrsearch_IG_RL % python scripts/evaluate.py /log/logs/{date}/model.zip
 videos are saved to mrsearch_IG_RL/mrsearch_IG_RL/log/videos/{date}.mp4
+
+    (search) mrsearch_IG_RL/mrsearch_IG_RL % python scripts/evaluate.py /log/logs/{date}/model.zip
 ## Tuning
 see config params at mrsearch_IG_RL/mrsearch_IG_RL/cfg/base.yaml
 
