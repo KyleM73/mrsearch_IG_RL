@@ -7,9 +7,12 @@ setup(name='mrsearch_IG_RL',
             'numpy',
             'pybullet',
             'datetime',
-            'stable_baselines3',
-            'tensorflow',
+            'stable_baselines3[extra]',
             'torch',
-            'EnvCreator'
+            'matplotlib',
+            'pyyaml',
+            'argparse',
+            'tqdm',
+            'rich'
             ]
 )
