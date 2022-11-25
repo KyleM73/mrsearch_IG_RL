@@ -46,7 +46,7 @@ to display simulation during evaluation go to ``mrsearch_IG_RL/mrsearch_IG_RL/sc
     env = mrsearch_IG_RL.envs.base_env(False,True,CFG_DIR+"/base.yaml"
 on line 13 and uncomment the last line of the for loop:
 
-    time.sleep(0.01)
+    time.sleep(env.dt)
 
 ## Tuning
 see config params at ``mrsearch_IG_RL/mrsearch_IG_RL/cfg/base.yaml``
