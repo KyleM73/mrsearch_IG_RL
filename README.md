@@ -14,7 +14,7 @@ go to ``mrsearch_IG_RL/mrsearch_IG_RL/scripts/train.py`` and set the appopriate 
 
     (search) mrsearch_IG_RL % cd mrsearch_IG_RL
     (search) mrsearch_IG_RL/mrsearch_IG_RL % python scripts/train.py
-to view tensorboard logs during training, launch tensorboard in a separate terminal with:
+to view tensorboard logs during training, launch tensorboard after training has begun in a separate terminal with:
 
     (search) mrsearch_IG_RL/mrsearch_IG_RL % tensorboard --logdir log/logs/{date}
 ### Train Tuning
