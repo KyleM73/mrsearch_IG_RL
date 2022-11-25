@@ -35,7 +35,7 @@ with ``gpu`` and ``mps`` the limiting factor is vRAM and RAM, respectively. the 
     batch_size = 2048
 training 1 million timesteps on my m1 macbookpro takes about an hour and a half.
 
-on more powerful gpus, start by increasing ``num_envs`` until hitting max files open error. reduce ``num_envs`` by a factor of 2 after hitting the error and increase ``n_steps`` until hitting an out of memory error. reduce ``n_steps`` byt a factor of 2 once the error is hit. always set ``batch_size`` accordingly as ``batch_size=num_envs*n_steps``.
+on more powerful gpus, start by increasing ``num_envs`` until hitting max files open error. reduce ``num_envs`` by a factor of 2 after hitting the error and increase ``n_steps`` until hitting an out of memory error. reduce ``n_steps`` by a factor of 2 once the error is hit. always set ``batch_size`` accordingly as ``batch_size=num_envs*n_steps``.
 
 the only other param that meaningfully affects memory performance is ``lidar/density`` in ``mrsearch_IG_RL/mrsearch_IG_RL/cfg/base.yaml`` which controls the number of lidar scans.
 ## Evaluate
