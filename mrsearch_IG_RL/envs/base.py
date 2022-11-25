@@ -136,8 +136,8 @@ class base_env(Env):
 
         dictRew = {}
         dictRew["IG"] = self.IG.item()
-        dictRew["vel"] = -torch.linalg.norm(torch.tensor(self.vel)).item()
-        dictRew["avel"] = -torch.linalg.norm(torch.tensor(self.avel)).item()
+        dictRew["vel"] = -self.vel_coef*torch.linalg.norm(torch.tensor(self.vel)).item()
+        dictRew["avel"] = -self.avel_coef*torch.linalg.norm(torch.tensor(self.avel)).item()
         if self.detection:
             self.done = True
             dictRew["Detection"] = self.detection_reward
@@ -376,6 +376,8 @@ class base_env(Env):
 
         ## reward params
         self.detection_reward = self.cfg["rewards"]["detection"]
+        self.vel_coef =  self.cfg["rewards"]["vel_coef"]
+        self.avel_coef = self.cfg["rewards"]["avel_coef"]
 
 if __name__ == "__main__":
     env = base_env(False,CFG_DIR+"/base.yaml")
