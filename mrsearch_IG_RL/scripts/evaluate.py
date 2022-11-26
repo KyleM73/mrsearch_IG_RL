@@ -12,7 +12,7 @@ import mrsearch_IG_RL
 from mrsearch_IG_RL import CFG_DIR
 
 if __name__ == "__main__":
-    env = mrsearch_IG_RL.envs.base_env(True,args.no_record,CFG_DIR+"/base.yaml")
+    env = mrsearch_IG_RL.envs.base_env(not args.play,args.no_record,CFG_DIR+"/base.yaml")
     model_path = args.filename
     model = PPO.load(model_path)
     ob = env.reset()

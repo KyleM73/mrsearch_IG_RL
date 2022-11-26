@@ -369,7 +369,7 @@ class base_env(Env):
         self.robot_width = self.cfg["robot"]["width"]
         self.robot_depth = self.cfg["robot"]["depth"]
         self.robot_height = self.cfg["robot"]["height"]
-        self.mass_matrix = torch.linalg.norm(torch.tensor([self.robot_width,self.robot_depth,self.robot_height]).item()
+        self.mass_matrix = torch.linalg.norm(torch.tensor([self.robot_width,self.robot_depth,self.robot_height])).item()
         self.max_accel = self.cfg["robot"]["max_linear_accel"]
         self.max_vel = self.cfg["robot"]["max_linear_vel"]
         self.max_aaccel = self.cfg["robot"]["max_angular_accel"]
