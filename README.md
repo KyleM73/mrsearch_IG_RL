@@ -1,5 +1,7 @@
 repo for multi-robot RL search with information gains
 
+final project for ``EE331V Learning-Based Optimal Control``
+
 ## Setup
     / % conda create -n search python=3.9.7
     / % conda activate search
