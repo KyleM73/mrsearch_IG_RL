@@ -1,23 +1,4 @@
-import os
-import yaml
-import time
-import datetime
-import math
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-import torch
-
-from gym import spaces, Env
-from stable_baselines3.common.env_checker import check_env
-
-import pybullet as p
-from pybullet import getQuaternionFromEuler as E2Q
-from pybullet import getEulerFromQuaternion as Q2E
-import pybullet_utils.bullet_client as bc
-import pybullet_data
-
-import mrsearch_IG_RL
+from mrsearch_IG_RL.external import *
 from mrsearch_IG_RL import PATH_DIR,CFG_DIR
 
 class base_env(Env):
@@ -104,18 +85,29 @@ class base_env(Env):
         return torch.unsqueeze(self.crop,0).numpy(), self.reward, self.done, self.dictLog
 
     def _act(self,action):
+        ## epsilon greedy exploration
+        if self.training:
+            if np.random.random_sample() < self.epsilon:
+                action = np.random.random_sample(action.shape)
+
+        ## set desired forces/torques        
         self.force = [self.max_accel*action[0],self.max_accel*action[1],0]
-        self.torque = [0,0,self.mass_matrix*self.max_aaccel*action[2]]
+        self.torque = [0,0,self.max_aaccel*action[2]/self.mass_matrix]
         for i in range(len(action)):
             if self.vel[i] + self.dt*self.force[i] > self.max_vel:
                 self.force[i] = 0
             if self.avel[i] + self.dt*self.torque[i] > self.max_avel:
                 self.torque[i] = 0
+
+        ## apply forces/torques in simulation
         p.applyExternalForce(self.robot,-1,self.force,[0,0,0],p.LINK_FRAME)
         p.applyExternalTorque(self.robot,-1,self.torque,p.LINK_FRAME)
         
+        ## step physics
         for _ in range(self.repeat_action):
             self.client.stepSimulation()
+
+            ## collision detection
             ctx = p.getContactPoints(self.robot,self.walls)
             if len(ctx) > 0:
                 self.collision = True
@@ -150,7 +142,9 @@ class base_env(Env):
 
         self.reward = 0
         for rew in dictRew.values():
+            print(rew)
             self.reward += rew
+        print()
         dictRew["Sum"] = self.reward
 
         self.dictLog = {}
@@ -354,6 +348,7 @@ class base_env(Env):
         self.repeat_action = int(self.policy_dt / self.dt)
         self.pad_l = self.cfg["simulation"]["pad_l"]
         self.entropy_decay = self.cfg["simulation"]["entropy_decay"]
+        self.epsilon = self.cfg["simulation"]["epsilon"]
         
         ## environment params
         self.resolution = self.cfg["environment"]["resolution"]
@@ -395,5 +390,5 @@ class base_env(Env):
         self.k = torch.ones((10,10))
 
 if __name__ == "__main__":
-    env = base_env(False,CFG_DIR+"/base.yaml")
+    env = base_env(False,False,CFG_DIR+"/base.yaml")
     check_env(env)

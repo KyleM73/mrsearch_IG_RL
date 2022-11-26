@@ -8,6 +8,7 @@ simulation:
   policy_dt: 0.1
   pad_l: 5
   entropy_decay: 0.999
+  epsilon: 0.2
 environment:
   height: 10
   width: 20
@@ -34,4 +35,4 @@ rewards:
   detection: 100
   collision: -1000
   vel_coef: 0.1
-  avel_coef: 1
+  avel_coef: 10

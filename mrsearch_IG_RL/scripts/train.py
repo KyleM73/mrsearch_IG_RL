@@ -1,13 +1,4 @@
-import time
-import datetime
-import torch
-import gym
-
-from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecMonitor
-from stable_baselines3.common.callbacks import ProgressBarCallback
-
-import mrsearch_IG_RL
+from mrsearch_IG_RL.external import *
 from mrsearch_IG_RL import LOG_PATH
 from mrsearch_IG_RL.models import EntropyCnn
 
