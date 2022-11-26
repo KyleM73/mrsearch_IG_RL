@@ -86,7 +86,7 @@ class base_env(Env):
 
     def _act(self,action):
         ## epsilon greedy exploration
-        if self.training:
+        if self.training and not self.record:
             if np.random.random_sample() < self.epsilon:
                 action = np.random.random_sample(action.shape)
 
