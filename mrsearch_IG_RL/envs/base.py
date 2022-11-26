@@ -142,9 +142,7 @@ class base_env(Env):
 
         self.reward = 0
         for rew in dictRew.values():
-            print(rew)
             self.reward += rew
-        print()
         dictRew["Sum"] = self.reward
 
         self.dictLog = {}
