@@ -60,7 +60,8 @@ class base_env(Env):
 
         ## reset entropy
         self.entropy = torch.where(self.map==1,1,0)
-        self.occ = torch.where(self.entropy==1,1,0).numpy()
+        if self.boosted:
+            self.occ = self.entropy.clone().numpy()
         self.grid = None
         self.information = None
         self.detection = False
@@ -122,7 +123,8 @@ class base_env(Env):
         self._get_scans()
         self._get_crop()
         self._get_IG()
-        self._get_path_len()
+        if self.boosted:
+            self._get_path_len()
 
         if self.record:
             self._save_entropy()

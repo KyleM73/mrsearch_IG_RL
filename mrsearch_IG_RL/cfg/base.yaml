@@ -7,7 +7,7 @@ simulation:
   dt: 0.01
   policy_dt: 0.1
   pad_l: 5
-  entropy_decay: 0.999
+  entropy_decay: 1
   epsilon: 0.1
 environment:
   height: 10

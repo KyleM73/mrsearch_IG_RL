@@ -51,8 +51,8 @@ class Node:
         return False
 
     def __repr__(self):
-        #return "Position: {pose}".format(pose=self.position)
-        return "(Position: {pose} , Parent: {parent})".format(pose=self.position, parent=self.parent)
+        return "Position: {pose}".format(pose=self.position)
+        #return "(Position: {pose} , Parent: {parent})".format(pose=self.position, parent=self.parent)
 
 class Grid:
     def __init__(self,grid):

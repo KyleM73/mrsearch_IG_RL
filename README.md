@@ -64,8 +64,12 @@ inputs are of size ``[1,201,201]`` and bounded between ``[-1,1]``
 
 CNN output size and MLP policy architecture can be set in ``policy_kwargs`` on line 42 of ``mrsearch_IG_RL/mrsearch_IG_RL/scripts/train.py``
 ## TODO
-- Epsilon greedy exploration
-- A* initialization reward term
-- Multi phase training
+- Epsilon greedy exploration - DONE
+- A* initialization reward term - DONE
+- Multi phase training - DONE
 - Video save callback
-- Zero entropy decay
+- Video save filenames
+- Tune training params for each training phase
+- Zero entropy decay - DONE
+- Multi agent setting
+- Precompute approximate astar path lengths
