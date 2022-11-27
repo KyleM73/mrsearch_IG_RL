@@ -36,3 +36,4 @@ rewards:
   collision: -1000
   vel_coef: 0.1
   avel_coef: 10
+  astar_coef: 1

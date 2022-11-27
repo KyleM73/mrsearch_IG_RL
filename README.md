@@ -64,6 +64,8 @@ inputs are of size ``[1,201,201]`` and bounded between ``[-1,1]``
 
 CNN output size and MLP policy architecture can be set in ``policy_kwargs`` on line 42 of ``mrsearch_IG_RL/mrsearch_IG_RL/scripts/train.py``
 ## TODO
-- Does the current reward function make sense?
-- How can the terms be adjusted to give the desired behavior?
-- How can we generalize this policy to multiple agents?
+- Epsilon greedy exploration
+- A* initialization reward term
+- Multi phase training
+- Video save callback
+- Zero entropy decay

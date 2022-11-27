@@ -1,8 +1,9 @@
 from mrsearch_IG_RL.external import *
 from mrsearch_IG_RL import PATH_DIR,CFG_DIR
+from mrsearch_IG_RL.util import A_Star,Grid
 
 class base_env(Env):
-    def __init__(self,training=True,record=False,cfg=None):
+    def __init__(self,training=True,record=False,boosted=False,cfg=None):
         self.dt = datetime.datetime.now().strftime('%m%d_%H%M')
         if isinstance(cfg,str):
             assert os.path.exists(cfg), "configuration file specified does not exist"
@@ -19,6 +20,7 @@ class base_env(Env):
 
         self.training = training
         self.record = record
+        self.boosted = boosted
         self._load_config()
 
         ## model I/O
@@ -58,6 +60,8 @@ class base_env(Env):
 
         ## reset entropy
         self.entropy = torch.where(self.map==1,1,0)
+        self.occ = torch.where(self.entropy==1,1,0).numpy()
+        self.grid = None
         self.information = None
         self.detection = False
         self.collision = False
@@ -86,7 +90,7 @@ class base_env(Env):
 
     def _act(self,action):
         ## epsilon greedy exploration
-        if self.training and not self.record:
+        if self.boosted:
             if np.random.random_sample() < self.epsilon:
                 action = np.random.random_sample(action.shape)
 
@@ -118,6 +122,7 @@ class base_env(Env):
         self._get_scans()
         self._get_crop()
         self._get_IG()
+        self._get_path_len()
 
         if self.record:
             self._save_entropy()
@@ -131,6 +136,8 @@ class base_env(Env):
         dictRew["IG"] = self.IG.item()
         dictRew["vel"] = -self.vel_coef*torch.linalg.norm(torch.tensor(self.vel)).item()
         dictRew["avel"] = -self.avel_coef*torch.linalg.norm(torch.tensor(self.avel)).item()
+        if self.boosted:
+            dictRew["Dist"] = -self.astar_coef*self.path_len
         if self.detection:
             self.done = True
             dictRew["Detection"] = self.detection_reward
@@ -198,6 +205,13 @@ class base_env(Env):
         else:
             self.IG = torch.sum(torch.abs(self.entropy)) - self.information
         self.information = torch.sum(torch.abs(self.entropy))
+
+    def _get_path_len(self):
+        if self.grid == None:
+            self.grid = Grid(self.occ)
+        path = A_Star(self.grid,self.pose_rc,self.target_pose_rc)
+        assert path is not None, "Unable to find path between {start} and {target}".format(start=self.pose_rc,target=self.target_pose_rc)
+        self.path_len = len(path)
 
     def _get_crop(self):
         r,c = self.pose_rc
@@ -383,10 +397,11 @@ class base_env(Env):
         self.collision_reward = self.cfg["rewards"]["collision"]
         self.vel_coef =  self.cfg["rewards"]["vel_coef"]
         self.avel_coef = self.cfg["rewards"]["avel_coef"]
+        self.astar_coef = self.cfg["rewards"]["astar_coef"]
 
         ## kernel
         self.k = torch.ones((10,10))
 
 if __name__ == "__main__":
-    env = base_env(False,False,CFG_DIR+"/base.yaml")
+    env = base_env(False,False,False,CFG_DIR+"/base.yaml")
     check_env(env)
