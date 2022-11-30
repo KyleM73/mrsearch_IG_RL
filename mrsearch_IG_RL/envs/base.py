@@ -87,6 +87,9 @@ class base_env(Env):
 
         return torch.unsqueeze(self.crop,0).numpy(), self.reward, self.done, self.dictLog
 
+    def close(self):
+        self.client.disconnect()
+
     def _act(self,action):
         ## epsilon greedy exploration
         if self.boosted:
@@ -241,7 +244,7 @@ class base_env(Env):
         tcc = tc//3
         tnn = trr*self.occ.shape[1]+tcc
         self.path_len = self.dists[nn,tnn]
-        print(self.path_len)
+        #print(self.path_len)
 
     def _get_crop(self):
         r,c = self.pose_rc

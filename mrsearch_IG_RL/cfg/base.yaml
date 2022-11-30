@@ -32,10 +32,10 @@ lidar:
   range: 10 #meters
   target_threshold: 3 #meters
   FOV: 360 #degrees
-  threads: -1 #-1 is single threaded, 0 is 'all', n is exactly n threads'
+  threads: 0 #-1 is single threaded, 0 is 'all', n is exactly n threads'
 rewards:
-  detection: 100
+  detection: 1000
   collision: -1000
   vel_coef: 0.1
   avel_coef: 10
-  astar_coef: 0.1
+  astar_coef: 1

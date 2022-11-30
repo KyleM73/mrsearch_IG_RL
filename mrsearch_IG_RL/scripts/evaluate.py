@@ -16,7 +16,6 @@ if __name__ == "__main__":
         model_path = args.filename
         model = PPO.load(model_path,env)
     ob = env.reset()
-    print("here")
 
     for _ in range(env.max_steps+1):
         if not args.zero_action:
