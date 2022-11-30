@@ -1,6 +1,5 @@
 from mrsearch_IG_RL.external import *
 from mrsearch_IG_RL import PATH_DIR,CFG_DIR
-from mrsearch_IG_RL.util import A_Star,Grid
 
 class base_env(Env):
     def __init__(self,training=True,record=False,boosted=False,cfg=None):
@@ -21,9 +20,9 @@ class base_env(Env):
         self.training = training
         self.record = record
         self.boosted = boosted
-        if self.boosted:
-            self.path_dict = {}
         self._load_config()
+        if self.boosted:
+            self._init_path_lens()
 
         ## model I/O
         # observe : cropped entropy map
@@ -62,9 +61,6 @@ class base_env(Env):
 
         ## reset entropy
         self.entropy = torch.where(self.map==1,1,0)
-        if self.boosted:
-            self.occ = self.entropy.clone().numpy()
-        self.grid = None
         self.information = None
         self.detection = False
         self.collision = False
@@ -210,16 +206,42 @@ class base_env(Env):
             self.IG = torch.sum(torch.abs(self.entropy)) - self.information
         self.information = torch.sum(torch.abs(self.entropy))
 
+    def _init_path_lens(self):
+        occ_grid = torch.where(self.map==1,1,0) #[201,401]
+        for pad in range(self.scale_factor): #[201,402]
+            if occ_grid.size()[0] % self.scale_factor:
+                occ_grid = torch.cat((occ_grid,torch.ones((1,occ_grid.size()[1]))),dim=0)
+            if occ_grid.size()[1] % self.scale_factor:
+                occ_grid = torch.cat((occ_grid,torch.ones((occ_grid.size()[0],1))),dim=1)
+        occ_grid = torch.unsqueeze(torch.unsqueeze(occ_grid,0),0) # [1,1,201,402]
+        pool = nn.MaxPool2d(self.scale_factor)
+        self.occ = torch.squeeze(pool(occ_grid)).numpy() #[67,134]
+        if self.dists is None:
+            N = self.occ.shape[0]*self.occ.shape[1]
+            graph = np.zeros((N,N))
+            for r in range(self.occ.shape[0]):
+                for c in range(self.occ.shape[1]):
+                    n = r*self.occ.shape[1]+c
+                    for i in range(-1,2):
+                        for j in range(-1,2):
+                            r_ = max(min(r+i,self.occ.shape[0]-1),0)
+                            c_ = max(min(c+j,self.occ.shape[1]-1),0)
+                            if not self.occ[r_,c_] and (r,c)!=(r_,c_):
+                                n_ = r_*self.occ.shape[1]+c_
+                                graph[n,n_] = 1
+            self.dists = shortest_path(graph,unweighted=True)
+
     def _get_path_len(self):
-        if self.grid == None:
-            self.grid = Grid(self.occ)
-        if (*self.pose_rc,*self.target_pose_rc) in self.path_dict.keys():
-            self.path_len = self.path_dict[(*self.pose_rc,*self.target_pose_rc)]
-        else:
-            path = A_Star(self.grid,self.pose_rc,self.target_pose_rc)
-            assert path is not None,"Unable to find path between {start} and {target}".format(start=self.pose_rc,target=self.target_pose_rc)
-            self.path_dict[(*self.pose_rc,*self.target_pose_rc)] = len(path)
-            self.path_len = len(path)
+        r,c = self.pose_rc
+        rr = r//3
+        cc = c//3
+        nn = rr*self.occ.shape[1]+cc
+        tr,tc = self.target_pose_rc
+        trr = tr//3
+        tcc = c//3
+        tnn = trr*self.occ.shape[1]+tcc
+        self.path_len = self.dists[nn,tnn]
+        print(self.path_len)
 
     def _get_crop(self):
         r,c = self.pose_rc
@@ -374,6 +396,15 @@ class base_env(Env):
         self.resolution = self.cfg["environment"]["resolution"]
         self.h = int(self.cfg["environment"]["height"] / self.resolution)
         self.w = int(self.cfg["environment"]["width"] / self.resolution)
+        self.scale_factor = self.cfg["environment"]["scale_factor"]
+        self.dist_fname = self.cfg["environment"]["distance_data"]
+        try:
+            self.dists = np.load("."+self.dist_fname)
+        except:
+            if self.boosted:
+                print("No distance data given.")
+                print("Computing distance data...")
+                self.dists = None
         self.map_fname = self.cfg["environment"]["filename"]
         self.map = torch.from_numpy(plt.imread(PATH_DIR+self.map_fname)[:,:,-1])
         self.map_urdf = self.cfg["environment"]["urdf"]

@@ -7,6 +7,9 @@ import json
 ## numpy
 import numpy as np
 
+## scipy
+from scipy.sparse.csgraph import shortest_path as shortest_path
+
 ## matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation

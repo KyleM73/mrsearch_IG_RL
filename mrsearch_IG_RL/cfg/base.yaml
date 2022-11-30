@@ -13,6 +13,8 @@ environment:
   height: 10
   width: 20
   resolution: 0.05
+  scale_factor: 3
+  distance_data: '/assets/distance_data.npy'
   filename: '/assets/map.png'
   urdf: '/assets/map.urdf'
   target_urdf: '/assets/target.urdf'

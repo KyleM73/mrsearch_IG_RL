@@ -152,3 +152,81 @@ def A_Star(grid,start_rc,target_rc):
         current = current.get_parent()
     path.append(current.get_position())
     return path[::-1]
+
+"""
+def A_Star_All(grid,start_rc,target_rc,path_dict):
+    if not isinstance(start_rc,tuple):
+        start_rc = tuple(start_rc)
+    if not isinstance(target_rc,tuple):
+        target_rc = tuple(target_rc)
+    start = Node()
+    start.set_position(start_rc)
+    target = Node()
+    target.set_position(target_rc)
+
+    if not grid.is_open(start.get_position()) or not grid.get_adjacent(start):
+        print("Invalid Start Position:")
+        print(start)
+        return #[]
+    elif not grid.is_open(target.get_position()) or not grid.get_adjacent(target):
+        print("Invalid Target:")
+        print(target)
+        return #[start.get_position()]
+
+    _open = []
+    _closed = []
+    _open.append(start)
+
+    max_iters = grid.get_shape()[0] * grid.get_shape()[1] 
+    cnt = 0
+
+    while _open and cnt < max_iters:
+        cnt += 1
+
+        min_f = np.argmin([n.get_f() for n in _open])
+        current = _open.pop(min_f)
+        if current in path_dict.keys():
+            
+        if current.get_position() in _closed:
+            continue
+        _closed.append(current.get_position())
+        if current.same_pose(target):
+            #print("Solution found.")
+            break
+        neighbors = grid.get_adjacent(current)
+        for n in neighbors:
+            if n.get_position() in _closed:
+                continue
+            n.set_g(current.get_g() + 1)
+            x1, y1 = n.get_position()
+            x2, y2 = target.get_position()
+            n.set_h((y2 - y1) ** 2 + (x2 - x1) ** 2)
+            n.set_f(n.get_h() + n.get_g())
+            _open.append(n)
+    else:
+        #print("Solution not found.")
+        return #[start.get_position()]
+    path = []
+    current_out = current
+    while current.get_parent() is not None:
+        path.append(current.get_position())
+        current = current.get_parent()
+    path.append(current.get_position())
+    return path[::-1],current_out
+
+def get_A_Star_lengths(occ,env):
+    grid = Grid(occ)
+    path_dict = {}
+    for r in range(occ.shape[0]):
+        for c in range(occ.shape[1]):
+            if env._is_valid(r,c):
+                for tr in range(occ.shape[0]):
+                    for tc in range(occ.shape[1]):
+                        if env._is_valid(tr,tc):
+                            out = A_Star_All(grid,(r,c),(tr,tc),path_dict)
+                            if out is not None:
+                                path_dict[out[1]] = len(out[0])
+        with open("assets/paths.json", "w") as f:
+        json.dump(paths , f) 
+    return path_dict
+"""

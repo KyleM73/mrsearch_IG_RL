@@ -5,6 +5,7 @@ setup(name='mrsearch_IG_RL',
       install_requires=[
             'gym',
             'numpy',
+            'scipy',
             'pybullet',
             'datetime',
             'stable_baselines3[extra]',
