@@ -238,7 +238,7 @@ class base_env(Env):
         nn = rr*self.occ.shape[1]+cc
         tr,tc = self.target_pose_rc
         trr = tr//3
-        tcc = c//3
+        tcc = tc//3
         tnn = trr*self.occ.shape[1]+tcc
         self.path_len = self.dists[nn,tnn]
         print(self.path_len)

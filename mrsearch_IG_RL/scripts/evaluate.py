@@ -7,16 +7,22 @@ parser.add_argument("filename",type=str)
 parser.add_argument("-n","--no_record",help="do not record simulation results",action="store_true")
 parser.add_argument("-p","--play",help="show simulation",action="store_true")
 parser.add_argument("-b","--boosted",help="run simulation with boosting",action="store_true")
+parser.add_argument("-z","--zero_action",help="run with no policy",action="store_true")
 args = parser.parse_args()
 
 if __name__ == "__main__":
     env = mrsearch_IG_RL.envs.base_env(not args.play,not args.no_record,args.boosted,CFG_DIR+"/base.yaml")
-    model_path = args.filename
-    model = PPO.load(model_path,env)
+    if not args.zero_action:
+        model_path = args.filename
+        model = PPO.load(model_path,env)
     ob = env.reset()
+    print("here")
 
     for _ in range(env.max_steps+1):
-        action, states = model.predict(ob)
+        if not args.zero_action:
+            action, states = model.predict(ob)
+        else:
+            action = np.array([0,0,0])
         ob, reward, done, info = env.step(action)
         if done:
             break
