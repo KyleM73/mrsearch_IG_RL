@@ -21,6 +21,8 @@ class base_env(Env):
         self.training = training
         self.record = record
         self.boosted = boosted
+        if self.boosted:
+            self.path_dict = {}
         self._load_config()
 
         ## model I/O
@@ -211,9 +213,13 @@ class base_env(Env):
     def _get_path_len(self):
         if self.grid == None:
             self.grid = Grid(self.occ)
-        path = A_Star(self.grid,self.pose_rc,self.target_pose_rc)
-        assert path is not None, "Unable to find path between {start} and {target}".format(start=self.pose_rc,target=self.target_pose_rc)
-        self.path_len = len(path)
+        if (*self.pose_rc,*self.target_pose_rc) in self.path_dict.keys():
+            self.path_len = self.path_dict[(*self.pose_rc,*self.target_pose_rc)]
+        else:
+            path = A_Star(self.grid,self.pose_rc,self.target_pose_rc)
+            assert path is not None,"Unable to find path between {start} and {target}".format(start=self.pose_rc,target=self.target_pose_rc)
+            self.path_dict[(*self.pose_rc,*self.target_pose_rc)] = len(path)
+            self.path_len = len(path)
 
     def _get_crop(self):
         r,c = self.pose_rc
