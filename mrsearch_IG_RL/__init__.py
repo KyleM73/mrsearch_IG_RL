@@ -17,7 +17,8 @@ ext.gym.envs.registration.register(
     'training' : True,
     'record' : False,
     'boosted' : True,
-    'cfg': CFG_DIR+cfg.base_cfg
+    'cfg' : CFG_DIR+cfg.base_cfg,
+    'plot' : False
     },
 )
 
@@ -31,6 +32,7 @@ ext.gym.envs.registration.register(
     'training' : True,
     'record' : False,
     'boosted' : False,
-    'cfg': CFG_DIR+cfg.base_cfg
+    'cfg': CFG_DIR+cfg.base_cfg,
+    'plot' : False
     },
 )

@@ -8,7 +8,7 @@ simulation:
   policy_dt: 0.1
   pad_l: 5
   entropy_decay: 1
-  epsilon: 0.1
+  epsilon: 0.
 environment:
   height: 10
   width: 20
@@ -28,14 +28,16 @@ robot:
   max_angular_accel: 0.1
   max_angular_vel: 0.2
 lidar:
-  density: 0.1 #percentage of max scans to use
-  range: 10 #meters
-  target_threshold: 3 #meters
-  FOV: 360 #degrees
+  density: 0.2 #percentage of max scans to use
+  range: 4 #meters
+  scan_height: 0.6
+  target_threshold: 2 #meters
+  FOV: 60 #degrees
   threads: 0 #-1 is single threaded, 0 is 'all', n is exactly n threads'
 rewards:
-  detection: 1000
-  collision: -1000
-  vel_coef: 0.1
-  avel_coef: 10
-  astar_coef: 1
+  detection: 100
+  collision: -10
+  vel_coef: 0.
+  avel_coef: 1.
+  action_coef: 1.
+  astar_coef: 1.

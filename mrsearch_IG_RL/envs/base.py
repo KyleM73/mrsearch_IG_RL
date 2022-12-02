@@ -2,7 +2,7 @@ from mrsearch_IG_RL.external import *
 from mrsearch_IG_RL import PATH_DIR,CFG_DIR
 
 class base_env(Env):
-    def __init__(self,training=True,record=False,boosted=False,cfg=None):
+    def __init__(self,training=True,record=False,boosted=False,cfg=None,plot=False):
         self.dt = datetime.datetime.now().strftime('%m%d_%H%M')
         if isinstance(cfg,str):
             assert os.path.exists(cfg), "configuration file specified does not exist"
@@ -20,6 +20,7 @@ class base_env(Env):
         self.training = training
         self.record = record
         self.boosted = boosted
+        self.plot = plot
         self._load_config()
         if self.boosted:
             self._init_path_lens()
@@ -65,7 +66,9 @@ class base_env(Env):
         self.detection = False
         self.collision = False
         self.done = False
+        self.action = np.array([0.,0.,0.])
         self.t = 0
+        self.ig_sum = 0
 
         ## setup recording
         if self.record:
@@ -77,6 +80,7 @@ class base_env(Env):
         return torch.unsqueeze(self.crop,0).numpy()
 
     def step(self,action):
+        #print(action)
         self._act(action)
         self._get_obs()
         self._get_rew()
@@ -85,12 +89,31 @@ class base_env(Env):
         if self.done and self.record:
             self._save_videos()
 
+        if self.plot:
+            self.fx.append(self.force[0])
+            self.fy.append(self.force[1])
+            #self.tt.append(self.torque[2])
+            self.axx.append(action[0])
+            self.ayy.append(action[1])
+            #self.at.append(action[2])
+            if self.done:
+                fig, ax = plt.subplots(2, 1)
+                ax[0].plot(self.axx)
+                ax[0].plot(self.fx)
+                ax[1].plot(self.ayy)
+                ax[1].plot(self.fy)
+                #ax[2].plot(self.at)
+                #ax[2].plot(self.tt)
+                plt.show()
+                self.close()
+
         return torch.unsqueeze(self.crop,0).numpy(), self.reward, self.done, self.dictLog
 
     def close(self):
         self.client.disconnect()
 
     def _act(self,action):
+        self.action = action
         ## epsilon greedy exploration
         if self.boosted:
             if np.random.random_sample() < self.epsilon:
@@ -98,18 +121,20 @@ class base_env(Env):
 
         ## set desired forces/torques        
         self.force = [self.max_accel*action[0],self.max_accel*action[1],0]
-        self.torque = [0,0,self.max_aaccel*action[2]/self.mass_matrix]
+        #self.torque = [0,0,self.max_aaccel*action[2]/self.mass_matrix]
         for i in range(len(action)):
             if self.vel[i] + self.dt*self.force[i] > self.max_vel:
                 self.force[i] = 0
-            if self.avel[i] + self.dt*self.torque[i] > self.max_avel:
-                self.torque[i] = 0
+        #    if self.avel[i] + self.dt*self.torque[i] > self.max_avel:
+        #        self.torque[i] = 0
+        #self.torque[2] = 0
 
         ## apply forces/torques in simulation
         p.applyExternalForce(self.robot,-1,self.force,[0,0,0],p.LINK_FRAME)
-        p.applyExternalTorque(self.robot,-1,self.torque,p.LINK_FRAME)
+        #p.applyExternalTorque(self.robot,-1,self.torque,p.LINK_FRAME)
         
         ## step physics
+        self.collision = False
         for _ in range(self.repeat_action):
             self.client.stepSimulation()
 
@@ -135,18 +160,22 @@ class base_env(Env):
         dictState["entropy"] = self.entropy
         dictState["pose"] = self.pose
 
+        self.ig_sum += self.IG.item()
+        #ig_norm = self.ig_sum / (self.t + 1)
+
         dictRew = {}
-        dictRew["IG"] = self.IG.item()
-        dictRew["vel"] = -self.vel_coef*torch.linalg.norm(torch.tensor(self.vel)).item()
-        dictRew["avel"] = -self.avel_coef*torch.linalg.norm(torch.tensor(self.avel)).item()
+        dictRew["IG"] = self.IG.item() #/ (ig_norm + 1e-4)
+        dictRew["vel"] = -self.vel_coef*torch.linalg.norm(torch.tensor(self.vel)).item() / torch.linalg.norm(torch.tensor([self.max_vel,self.max_vel,0])).item()
+        dictRew["avel"] = -self.avel_coef*torch.linalg.norm(torch.tensor(self.avel[2])).item() / torch.linalg.norm(torch.tensor([0,0,self.max_avel])).item()
+        dictRew["action"] = -self.action_coef*torch.linalg.norm(torch.from_numpy(self.action)).item() / torch.linalg.norm(torch.tensor([1.,1.,1.])).item()
         if self.boosted:
-            dictRew["Dist"] = -self.astar_coef*self.path_len
+            dictRew["Dist"] = -self.astar_coef*self.path_len / self.max_path_len
+        if self.collision:
+            #self.done = True
+            dictRew["Collision"] = self.collision_reward
         if self.detection:
             self.done = True
             dictRew["Detection"] = self.detection_reward
-        elif self.collision:
-            self.done = True
-            dictRew["Collision"] = self.collision_reward
         elif self.t >= self.max_steps:
             self.done = True
 
@@ -190,8 +219,8 @@ class base_env(Env):
         r,c = self.pose_rc
         tr,tc = self.target_pose_rc
         entropy_marked = self.entropy.clone()
-        entropy_marked[r-1:r+2,c-1:c+2] = 1
-        entropy_marked[tr-2:tr+4,tc-2:tc+4] = 1
+        entropy_marked[r-2:r+3,c-2:c+3] = 1
+        entropy_marked[tr-3:tr+4,tc-3:tc+4] = 1
         self.frames.append([self.ax.imshow(entropy_marked.numpy(),animated=True,vmin=-1,vmax=1)])
         self.frames_obs.append([self.ax_obs.imshow(self.crop.numpy(),animated=True,vmin=-1,vmax=1)])
 
@@ -249,29 +278,31 @@ class base_env(Env):
     def _get_crop(self):
         r,c = self.pose_rc
         entropy_marked = self.entropy.clone()
-        entropy_marked[r-1:r+2,c-1:c+2] = 1
+        entropy_marked[r-5:r+6,c-5:c+6] = 1
         # left side
-        if self.pose_rc[1] < self.obs_w:
+        if self.pose_rc[1] < self.obs_w/2:
             self.crop = entropy_marked[:,:self.obs_w]
         #right side
-        elif self.h - self.pose_rc[1] < self.obs_w:
+        elif self.pose_rc[1] > self.w - self.obs_w/2:
             self.crop = entropy_marked[:,-self.obs_w:]
         #center crop on robot
         else:
-            self.crop = entropy_marked[:,self.pose_rc[1]-int(self.obs_w/2):self.pose_rc+int(self.obs_w/2)]
-        
+            if self.obs_w % 2:
+                self.crop = entropy_marked[:,self.pose_rc[1]-self.obs_w//2:self.pose_rc[1]+self.obs_w//2+1]
+            else:
+                self.crop = entropy_marked[:,self.pose_rc[1]-self.obs_w//2:self.pose_rc[1]+self.obs_w//2]
         assert self.crop.size() == (self.obs_w,self.obs_w)
 
     def _decay_entropy(self):
         self.entropy = self.entropy_decay * self.entropy
 
     def _get_scans(self):
-        origins = [[self.pose[0],self.pose[1],0.5] for i in range(self.num_scans)]
+        origins = [[self.pose[0],self.pose[1],self.scan_height] for i in range(self.num_scans)]
         endpts = [
             [
                 self.scan_range * math.cos(i*self.scan_angle + self.ori - self.FOV/2) + self.pose[0],
                 self.scan_range * math.sin(i*self.scan_angle + self.ori - self.FOV/2) + self.pose[1],
-                0.5
+                self.scan_height
             ]
                 for i in range(self.num_scans)]
         scan_data = p.rayTestBatch(origins,endpts,numThreads=self.lidar_threads)
@@ -427,6 +458,7 @@ class base_env(Env):
         ## LiDAR params
         self.scan_density_coef = self.cfg["lidar"]["density"]
         self.scan_range = self.cfg["lidar"]["range"]
+        self.scan_height = self.cfg["lidar"]["scan_height"]
         self.target_threshold = self.cfg["lidar"]["target_threshold"]
         self.FOV = 2 * math.pi * self.cfg["lidar"]["FOV"] / 360 #deg2rad
         self.scan_density = self.scan_density_coef * 2 * math.pi / math.atan(self.resolution/self.scan_range) # resolution / max(height, width)
@@ -439,10 +471,21 @@ class base_env(Env):
         self.collision_reward = self.cfg["rewards"]["collision"]
         self.vel_coef =  self.cfg["rewards"]["vel_coef"]
         self.avel_coef = self.cfg["rewards"]["avel_coef"]
+        self.action_coef = self.cfg["rewards"]["action_coef"]
         self.astar_coef = self.cfg["rewards"]["astar_coef"]
+        self.max_path_len = 178 #trust me
 
         ## kernel
         self.k = torch.ones((10,10))
+
+        ## plot
+        if self.plot:
+            self.fx = []
+            self.fy = []
+            #self.tt = []
+            self.axx = []
+            self.ayy = []
+            #self.at = []
 
 if __name__ == "__main__":
     env = base_env(False,False,False,CFG_DIR+"/base.yaml")

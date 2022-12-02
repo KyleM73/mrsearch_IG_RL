@@ -16,9 +16,9 @@ class EntropyCnn(BaseFeaturesExtractor):
         n_input_dim = observation_space.shape[0]
         self.cnn = nn.Sequential(
             nn.Conv2d(n_input_dim, 32, kernel_size=11, stride=5, padding=0),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.Conv2d(32, 64, kernel_size=6, stride=3, padding=0),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.Flatten(),
         )
         # Compute shape by doing one forward pass
@@ -27,7 +27,8 @@ class EntropyCnn(BaseFeaturesExtractor):
                 torch.as_tensor(observation_space.sample()[None]).float()
             ).shape[1]
 
-        self.linear = nn.Sequential(nn.Linear(n_flatten, features_dim), nn.ReLU())
+        self.linear = nn.Sequential(nn.Linear(n_flatten, features_dim), nn.Tanh())
 
     def forward(self, observations: torch.Tensor) -> torch.Tensor:
-        return self.linear(self.cnn(observations))
+        x = self.linear(self.cnn(observations))
+        return x
