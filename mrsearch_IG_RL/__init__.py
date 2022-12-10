@@ -36,3 +36,17 @@ ext.gym.envs.registration.register(
     'plot' : False
     },
 )
+
+ext.gym.envs.registration.register(
+    # unique identifier for the env `name-version`
+    id="icm_search-v0",
+    # path to the class for creating the env
+    # Note: entry_point also accept a class as input (and not only a string)
+    entry_point="mrsearch_IG_RL.envs:icm_env",
+    kwargs={
+    'training' : True,
+    'record' : False,
+    'cfg': CFG_DIR+cfg.icm_cfg,
+    'plot' : False
+    },
+)

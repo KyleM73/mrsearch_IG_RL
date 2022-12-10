@@ -1,8 +1,8 @@
 from mrsearch_IG_RL.external import *
 from mrsearch_IG_RL import PATH_DIR,CFG_DIR
 
-class base_env(Env):
-    def __init__(self,training=True,record=False,boosted=False,cfg=None,plot=False):
+class icm_env(Env):
+    def __init__(self,training=True,record=False,cfg=None,plot=False):
         self.dt = datetime.datetime.now().strftime('%m%d_%H%M')
         if isinstance(cfg,str):
             assert os.path.exists(cfg), "configuration file specified does not exist"
@@ -19,18 +19,15 @@ class base_env(Env):
 
         self.training = training
         self.record = record
-        self.boosted = boosted
         self.plot = plot
         self._load_config()
-        if self.boosted:
-            self._init_path_lens()
 
         ## model I/O
         # observe : cropped entropy map
         # act     : XY waypts, desired heading
         self.obs_w = min(self.h,self.w) + 1
         self.observation_space = spaces.Box(low=-1,high=1,shape=(1,self.obs_w,self.obs_w),dtype=np.float32)
-        self.action_space = spaces.Box(low=-1,high=1,shape=(3,),dtype=np.float32)
+        self.action_space = spaces.Box(low=-1,high=1,shape=(1,),dtype=np.float32)
 
     def reset(self):
         ## initiate simulation
@@ -62,13 +59,11 @@ class base_env(Env):
 
         ## reset entropy
         self.entropy = torch.where(self.map==1,1,0)
-        self.information = None
         self.detection = False
-        self.collision = False
         self.done = False
-        self.action = np.array([0.,0.,0.])
+        self.action = np.array([0.])
+        self.intrinsic_rewards = [torch.tensor([0.]),torch.tensor([0.])]
         self.t = 0
-        self.ig_sum = 0
 
         ## setup recording
         if self.record:
@@ -80,8 +75,10 @@ class base_env(Env):
         return torch.unsqueeze(self.crop,0).numpy()
 
     def step(self,action):
-        #print(action)
-        self._act(action)
+        self.action = action[0]
+        self.intrinsic_rewards = action[1].numpy()
+
+        self._act()
         self._get_obs()
         self._get_rew()
         self.t += 1
@@ -90,20 +87,18 @@ class base_env(Env):
             self._save_videos()
 
         if self.plot:
-            self.fx.append(self.force[0])
-            self.fy.append(self.force[1])
-            #self.tt.append(self.torque[2])
-            self.axx.append(action[0])
-            self.ayy.append(action[1])
-            #self.at.append(action[2])
+            self.wayptx.append(self.waypt[0])
+            self.waypty.append(self.waypt[1])
+            self.axx.append(self.force[0])
+            self.ayy.append(self.force[1])
+            self.ath.append(self.torque[2])
             if self.done:
-                fig, ax = plt.subplots(2, 1)
+                fig, ax = plt.subplots(3, 1)
                 ax[0].plot(self.axx)
-                ax[0].plot(self.fx)
                 ax[1].plot(self.ayy)
-                ax[1].plot(self.fy)
-                #ax[2].plot(self.at)
-                #ax[2].plot(self.tt)
+                ax[2].plot(self.ath)
+                fig2, ax2 = plt.subplots(1, 1)
+                ax2[0].plot(self.wayptx,self.waypty)
                 plt.show()
                 self.close()
 
@@ -112,70 +107,67 @@ class base_env(Env):
     def close(self):
         self.client.disconnect()
 
-    def _act(self,action):
-        self.action = action
-        ## epsilon greedy exploration
-        if self.boosted:
-            if np.random.random_sample() < self.epsilon:
-                action = np.random.random_sample(action.shape)
+    def _act(self):
+        self.desired_heading = math.pi*self.action #[-pi,pi]
 
-        ## set desired forces/torques        
-        self.force = [self.max_accel*action[0],self.max_accel*action[1],0]
-        #self.torque = [0,0,self.max_aaccel*action[2]/self.mass_matrix]
-        for i in range(len(action)):
-            if self.vel[i] + self.dt*self.force[i] > self.max_vel:
-                self.force[i] = 0
-        #    if self.avel[i] + self.dt*self.torque[i] > self.max_avel:
-        #        self.torque[i] = 0
-        #self.torque[2] = 0
+        self.waypt_offset = self.waypt_dist*np.array([np.cos(self.desired_heading),np.sin(self.desired_heading),0*self.desired_heading]).reshape((-1,))
+        self.waypt = np.array(self.pose) + self.waypt_offset
 
-        ## apply forces/torques in simulation
-        p.applyExternalForce(self.robot,-1,self.force,[0,0,0],p.LINK_FRAME)
-        #p.applyExternalTorque(self.robot,-1,self.torque,p.LINK_FRAME)
-        
         ## step physics
-        self.collision = False
         for _ in range(self.repeat_action):
-            self.client.stepSimulation()
+            err = self.waypt - np.array(self.pose)
+            force_ = self.Kp*err/self.mass
+            self.force = np.clip(force_,-self.max_accel,self.max_accel)
+            
+            err_th = float(self.desired_heading[0]) - self.ori
+            err_th = (err_th + 2*math.pi) % (2*math.pi)
+            if err_th > math.pi:
+                err_th -= 2*math.pi
+            torque_ = self.Kp*err_th/self.mass_matrix
+            torque_ = max(min(torque_,self.max_aaccel),-self.max_aaccel)
+            self.torque = [0,0,torque_]
+            
+            for i in range(3
+                ):
+                if self.vel[i] + self.dt*self.force[i] > self.max_vel or self.vel[i] + self.dt*self.force[i] < self.max_vel:
+                    self.force[i] = 0
+            if self.avel[2] + self.dt*self.torque[2] > self.max_avel or self.avel[2] + self.dt*self.torque[2] < self.max_avel:
+                self.torque[2] = 0
 
-            ## collision detection
-            ctx = p.getContactPoints(self.robot,self.walls)
-            if len(ctx) > 0:
-                self.collision = True
+            p.applyExternalForce(self.robot,-1,self.force,[0,0,0],p.LINK_FRAME)
+            p.applyExternalTorque(self.robot,-1,self.torque,p.LINK_FRAME)
+
+            self.client.stepSimulation()
+            self._get_pose()
+
+        ## TODO
+        # derive PD controller for double integrator?
 
     def _get_obs(self):
         self._get_pose()
         self._decay_entropy()
         self._get_scans()
         self._get_crop()
-        self._get_IG()
-        if self.boosted:
-            self._get_path_len()
 
         if self.record:
             self._save_entropy()
 
     def _get_rew(self):
+        
         dictState = {}
         dictState["entropy"] = self.entropy
         dictState["pose"] = self.pose
 
-        #self.ig_sum += self.IG.item()
-        #ig_norm = self.ig_sum / (self.t + 1)
+        Li = self.intrinsic_rewards[0]
+        Lf = self.intrinsic_rewards[1]
 
         dictRew = {}
-        dictRew["IG"] = self.ig_coef*self.IG.item() / (math.pi * self.scan_range**2)#(ig_norm + 1e-4)
-        dictRew["vel"] = -self.vel_coef*torch.linalg.norm(torch.tensor(self.vel)).item() / torch.linalg.norm(torch.tensor([self.max_vel,self.max_vel,0])).item()
-        dictRew["avel"] = -self.avel_coef*torch.linalg.norm(torch.tensor(self.avel[2])).item() / torch.linalg.norm(torch.tensor([0,0,self.max_avel])).item()
-        dictRew["action"] = -self.action_coef*torch.linalg.norm(torch.from_numpy(self.action)).item() / torch.linalg.norm(torch.tensor([1.,1.,1.])).item()
-        if self.boosted:
-            dictRew["Dist"] = 1 / (1 + self.astar_coef*self.path_len / self.max_path_len)
-        if self.collision:
-            self.done = True
-            dictRew["Collision"] = self.collision_reward
+        dictRew["Li"] = -(1-self.beta)*Li
+        dictRew["Lf"] = -self.beta*Lf
+        dictRew["Ri"] = self.eta*Lf
         if self.detection:
             self.done = True
-            dictRew["Detection"] = self.detection_reward
+            dictRew["Re"] = self.lmbda*self.detection_reward
         elif self.t >= self.max_steps:
             self.done = True
 
@@ -230,50 +222,6 @@ class base_env(Env):
 
         ani_obs = animation.ArtistAnimation(self.fig_obs,self.frames_obs,interval=int(1000/self.fps),blit=True,repeat=False)
         ani_obs.save(PATH_DIR+self.log_dir+self.log_name_obs,writer=self.writer)
-
-    def _get_IG(self):
-        if self.information is None:
-            self.IG = torch.zeros((1))
-        else:
-            self.IG = torch.sum(torch.abs(self.entropy)) - self.information
-        self.information = torch.sum(torch.abs(self.entropy))
-
-    def _init_path_lens(self):
-        occ_grid = torch.where(self.map==1,1,0) #[201,401]
-        for pad in range(self.scale_factor): #[201,402]
-            if occ_grid.size()[0] % self.scale_factor:
-                occ_grid = torch.cat((occ_grid,torch.ones((1,occ_grid.size()[1]))),dim=0)
-            if occ_grid.size()[1] % self.scale_factor:
-                occ_grid = torch.cat((occ_grid,torch.ones((occ_grid.size()[0],1))),dim=1)
-        occ_grid = torch.unsqueeze(torch.unsqueeze(occ_grid,0),0) # [1,1,201,402]
-        pool = nn.MaxPool2d(self.scale_factor)
-        self.occ = torch.squeeze(pool(occ_grid)).numpy() #[67,134]
-        if self.dists is None:
-            N = self.occ.shape[0]*self.occ.shape[1]
-            graph = np.zeros((N,N))
-            for r in range(self.occ.shape[0]):
-                for c in range(self.occ.shape[1]):
-                    n = r*self.occ.shape[1]+c
-                    for i in range(-1,2):
-                        for j in range(-1,2):
-                            r_ = max(min(r+i,self.occ.shape[0]-1),0)
-                            c_ = max(min(c+j,self.occ.shape[1]-1),0)
-                            if not self.occ[r_,c_] and (r,c)!=(r_,c_):
-                                n_ = r_*self.occ.shape[1]+c_
-                                graph[n,n_] = 1
-            self.dists = shortest_path(graph,unweighted=True)
-
-    def _get_path_len(self):
-        r,c = self.pose_rc
-        rr = r//3
-        cc = c//3
-        nn = rr*self.occ.shape[1]+cc
-        tr,tc = self.target_pose_rc
-        trr = tr//3
-        tcc = tc//3
-        tnn = trr*self.occ.shape[1]+tcc
-        self.path_len = self.dists[nn,tnn]
-        #print(self.path_len)
 
     def _get_crop(self):
         r,c = self.pose_rc
@@ -424,21 +372,16 @@ class base_env(Env):
         self.repeat_action = int(self.policy_dt / self.dt)
         self.pad_l = self.cfg["simulation"]["pad_l"]
         self.entropy_decay = self.cfg["simulation"]["entropy_decay"]
-        self.epsilon = self.cfg["simulation"]["epsilon"]
+        self.waypt_dist = self.cfg["simulation"]["waypoint_dist"]
+        self.Kp = self.cfg["simulation"]["Kp"]
+        self.Kd = self.cfg["simulation"]["Kd"]
+        self.Ki = self.cfg["simulation"]["Ki"]
         
         ## environment params
         self.resolution = self.cfg["environment"]["resolution"]
         self.h = int(self.cfg["environment"]["height"] / self.resolution)
         self.w = int(self.cfg["environment"]["width"] / self.resolution)
         self.scale_factor = self.cfg["environment"]["scale_factor"]
-        self.dist_fname = self.cfg["environment"]["distance_data"]
-        try:
-            self.dists = np.load("."+self.dist_fname)
-        except:
-            if self.boosted:
-                print("No distance data given.")
-                print("Computing distance data...")
-                self.dists = None
         self.map_fname = self.cfg["environment"]["filename"]
         self.map = torch.from_numpy(plt.imread(PATH_DIR+self.map_fname)[:,:,-1])
         self.map_urdf = self.cfg["environment"]["urdf"]
@@ -449,7 +392,8 @@ class base_env(Env):
         self.robot_width = self.cfg["robot"]["width"]
         self.robot_depth = self.cfg["robot"]["depth"]
         self.robot_height = self.cfg["robot"]["height"]
-        self.mass_matrix = torch.linalg.norm(torch.tensor([self.robot_width,self.robot_depth,self.robot_height])).item()
+        self.mass = self.cfg["robot"]["mass"]
+        self.mass_matrix = 0.5*self.mass*torch.linalg.norm(torch.tensor([self.robot_width,self.robot_depth,self.robot_height])).item()**2 #I=0.5*m*r**2
         self.max_accel = self.cfg["robot"]["max_linear_accel"]
         self.max_vel = self.cfg["robot"]["max_linear_vel"]
         self.max_aaccel = self.cfg["robot"]["max_angular_accel"]
@@ -468,26 +412,21 @@ class base_env(Env):
 
         ## reward params
         self.detection_reward = self.cfg["rewards"]["detection"]
-        self.collision_reward = self.cfg["rewards"]["collision"]
-        self.ig_coef = self.cfg["rewards"]["ig_coef"]
-        self.vel_coef =  self.cfg["rewards"]["vel_coef"]
-        self.avel_coef = self.cfg["rewards"]["avel_coef"]
-        self.action_coef = self.cfg["rewards"]["action_coef"]
-        self.astar_coef = self.cfg["rewards"]["astar_coef"]
-        self.max_path_len = 178 #trust me
+        self.beta = self.cfg["rewards"]["beta"]
+        self.lmbda = self.cfg["rewards"]["lambda"]
+        self.eta = self.cfg["rewards"]["eta"]
 
         ## kernel
         self.k = torch.ones((10,10))
 
         ## plot
         if self.plot:
-            self.fx = []
-            self.fy = []
-            #self.tt = []
+            self.wayptx = []
+            self.waypty = []
             self.axx = []
             self.ayy = []
-            #self.at = []
+            self.ath = []
 
 if __name__ == "__main__":
-    env = base_env(False,False,False,CFG_DIR+"/base.yaml")
+    env = icm_env(False,False,CFG_DIR+"/icm.yaml")
     check_env(env)

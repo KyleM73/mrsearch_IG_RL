@@ -41,6 +41,8 @@ from gym import spaces,Env
 ## stable_baselines3
 import stable_baselines3
 from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecMonitor
-from stable_baselines3.common.callbacks import ProgressBarCallback
+from stable_baselines3.common.vec_env import VecEnv, DummyVecEnv, SubprocVecEnv, VecMonitor
+from stable_baselines3.common.callbacks import BaseCallback, ProgressBarCallback
 from stable_baselines3.common.env_checker import check_env
+from stable_baselines3.common.buffers import RolloutBuffer
+from stable_baselines3.common.utils import obs_as_tensor

@@ -1,14 +1,15 @@
 record:
   log_dir: '/log/videos'
-  log_name: '/test.mp4' #depreciated
-  log_name_obs: '/crop.mp4' #depreciated
 simulation:
-  horizon: 50 #s
+  horizon: 120 #s
   dt: 0.01
   policy_dt: 0.1
   pad_l: 5
-  entropy_decay: 1
-  epsilon: 0.
+  entropy_decay: 1.
+  waypoint_dist: 1.
+  Kp: 1.
+  Kd: 0.
+  Ki: 0.
 environment:
   height: 10
   width: 20
@@ -23,6 +24,7 @@ robot:
   width: 0.5 #x
   depth: 0.5 #y
   height: 0.5 #z
+  mass: 1.
   max_linear_accel: 0.1
   max_linear_vel: 0.2
   max_angular_accel: 0.1
@@ -35,10 +37,7 @@ lidar:
   FOV: 360 #degrees
   threads: 0 #-1 is single threaded, 0 is 'all', n is exactly n threads'
 rewards:
-  detection: 100
-  collision: -100
-  ig_coef: 1.
-  vel_coef: 0.
-  avel_coef: 0.
-  action_coef: 0.
-  astar_coef: 1.
+  detection: 1.
+  beta: 0.2
+  lambda: 0.1
+  eta: 288.

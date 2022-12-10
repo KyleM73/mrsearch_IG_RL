@@ -23,7 +23,7 @@ if __name__ == "__main__":
     buffer_size = n_steps * num_envs
     batch_size = 2048
     assert buffer_size % batch_size == 0
-    policy_kwargs = dict(activation_fn=nn.Tanh,features_extractor_class=EntropyCnn,features_extractor_kwargs=dict(features_dim=256),
+    policy_kwargs = dict(activation_fn=nn.ReLU,features_extractor_class=EntropyCnn,features_extractor_kwargs=dict(features_dim=256),
         net_arch=[128,64,32],normalize_images=False)
 
     ## logging params
