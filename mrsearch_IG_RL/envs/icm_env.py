@@ -164,7 +164,7 @@ class icm_env(Env):
         dictRew = {}
         dictRew["Li"] = -(1-self.beta)*Li
         dictRew["Lf"] = -self.beta*Lf
-        dictRew["Ri"] = self.eta*Lf
+        dictRew["Ri"] = self.lmbda*self.eta*Lf
         if self.detection:
             self.done = True
             dictRew["Re"] = self.lmbda*self.detection_reward
