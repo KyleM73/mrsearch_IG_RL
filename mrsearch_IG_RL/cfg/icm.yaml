@@ -40,4 +40,4 @@ rewards:
   detection: 1.
   beta: 0.2
   lambda: 0.1
-  eta: 288.
+  eta: 1.
