@@ -31,9 +31,9 @@ robot:
   max_angular_vel: 0.2
 lidar:
   density: 0.2 #percentage of max scans to use
-  range: 4 #meters
+  range: 5 #meters
   scan_height: 0.6
-  target_threshold: 2 #meters
+  target_threshold: 3 #meters
   FOV: 360 #degrees
   threads: 0 #-1 is single threaded, 0 is 'all', n is exactly n threads'
 rewards:

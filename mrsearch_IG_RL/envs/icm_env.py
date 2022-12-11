@@ -99,6 +99,8 @@ class icm_env(Env):
                 ax[2].plot(self.ath)
                 fig2, ax2 = plt.subplots(1, 1)
                 ax2.plot(self.wayptx,self.waypty)
+                ax2.set_xlim([-10, 10])
+                ax2.set_ylim([-5, 5])
                 plt.show()
                 self.close()
 
@@ -224,8 +226,9 @@ class icm_env(Env):
 
     def _get_crop(self):
         r,c = self.pose_rc
-        entropy_marked = self.entropy.clone()
-        entropy_marked[r-5:r+6,c-5:c+6] = 1
+        #entropy_marked = self.entropy.clone()
+        #entropy_marked[r-5:r+6,c-5:c+6] = 1
+        entropy_marked = torch.where(self.map==1,1,0)
         # left side
         if self.pose_rc[1] < self.obs_w/2:
             self.crop = entropy_marked[:,:self.obs_w]
