@@ -27,7 +27,7 @@ if __name__ == "__main__":
         else:
             action, states, probs, intrinsic_rewards = model(torch.from_numpy(ob))
         #    action = np.array([0.])
-        action = action.detach()
+        action = action.detach().numpy()
         intrinsic_rewards = torch.tensor([intrinsic_rewards[0],intrinsic_rewards[1]]).detach()
         ob, reward, done, info = env.step([action, intrinsic_rewards])
         if done:

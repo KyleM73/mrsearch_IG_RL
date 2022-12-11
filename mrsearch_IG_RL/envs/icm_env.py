@@ -98,7 +98,7 @@ class icm_env(Env):
                 ax[1].plot(self.ayy)
                 ax[2].plot(self.ath)
                 fig2, ax2 = plt.subplots(1, 1)
-                ax2[0].plot(self.wayptx,self.waypty)
+                ax2.plot(self.wayptx,self.waypty)
                 plt.show()
                 self.close()
 
@@ -112,7 +112,6 @@ class icm_env(Env):
 
         self.waypt_offset = self.waypt_dist*np.array([np.cos(self.desired_heading),np.sin(self.desired_heading),0*self.desired_heading]).reshape((-1,))
         self.waypt = np.array(self.pose) + self.waypt_offset
-
         ## step physics
         for _ in range(self.repeat_action):
             err = self.waypt - np.array(self.pose)
@@ -126,12 +125,13 @@ class icm_env(Env):
             torque_ = self.Kp*err_th/self.mass_matrix
             torque_ = max(min(torque_,self.max_aaccel),-self.max_aaccel)
             self.torque = [0,0,torque_]
+            print(self.torque)
             
-            for i in range(3
-                ):
-                if self.vel[i] + self.dt*self.force[i] > self.max_vel or self.vel[i] + self.dt*self.force[i] < self.max_vel:
+            for i in range(2):
+                if self.vel[i] + self.dt*self.force[i] > self.max_vel or self.vel[i] + self.dt*self.force[i] < -self.max_vel:
                     self.force[i] = 0
-            if self.avel[2] + self.dt*self.torque[2] > self.max_avel or self.avel[2] + self.dt*self.torque[2] < self.max_avel:
+            self.force[2] = 0
+            if self.avel[2] + self.dt*self.torque[2] > self.max_avel or self.avel[2] + self.dt*self.torque[2] < -self.max_avel:
                 self.torque[2] = 0
 
             p.applyExternalForce(self.robot,-1,self.force,[0,0,0],p.LINK_FRAME)
