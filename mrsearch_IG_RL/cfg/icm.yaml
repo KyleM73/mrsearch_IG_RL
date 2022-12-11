@@ -1,7 +1,7 @@
 record:
   log_dir: '/log/videos'
 simulation:
-  horizon: 120 #s
+  horizon: 600 #s
   dt: 0.01
   policy_dt: 1.
   pad_l: 5
