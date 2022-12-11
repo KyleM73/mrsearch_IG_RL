@@ -41,6 +41,9 @@ class Encoder(nn.Module):
 
     def forward(self, observations: torch.Tensor) -> torch.Tensor:
         x = self.cnn(observations)
+        if x.size()[0] != observations.size()[0] or x.size()[1] != self.n_flatten:
+            x = nn.Flatten(0)(x)
+            x = nn.Unflatten(0,(observations.size()[0],-1))(x) 
         return x
 
 class Decoder(nn.Module):
@@ -164,13 +167,14 @@ class ActorCriticICM(ActorCriticPolicy):
 
     def forward(self, obs: torch.Tensor, deterministic: bool = False) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # Preprocess the observation if needed
-        #features = self.extract_features(obs)
+        features = self.extract_features(obs)
         #assert torch.equal(obs,features)
         latent_pi, latent_vf = self.mlp_extractor(obs)
         # Evaluate the values for the given observations
         values = self.value_net(latent_vf)
         distribution = self._get_action_dist_from_latent(latent_pi) 
         actions = distribution.get_actions(deterministic=deterministic)
+        actions = nn.Tanh()(actions) #[-1,1]
         log_prob = distribution.log_prob(actions)
         actions = actions.reshape((-1,) + self.action_space.shape)
         if self.last_obs is None:
