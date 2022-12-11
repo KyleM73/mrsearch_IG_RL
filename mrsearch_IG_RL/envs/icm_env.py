@@ -228,7 +228,7 @@ class icm_env(Env):
         r,c = self.pose_rc
         #entropy_marked = self.entropy.clone()
         #entropy_marked[r-5:r+6,c-5:c+6] = 1
-        entropy_marked = torch.where(self.map==1,1,0)
+        entropy_marked = torch.where(self.map==1,1.,0.)
         # left side
         if self.pose_rc[1] < self.obs_w/2:
             self.crop = entropy_marked[:,:self.obs_w]
