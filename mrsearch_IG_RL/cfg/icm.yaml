@@ -37,7 +37,7 @@ lidar:
   FOV: 360 #degrees
   threads: 0 #-1 is single threaded, 0 is 'all', n is exactly n threads'
 rewards:
-  detection: 1.
+  detection: 100.
   beta: 0.2
   lambda: 0.1
   eta: 288.
