@@ -125,7 +125,6 @@ class icm_env(Env):
             torque_ = self.Kp*err_th/self.mass_matrix
             torque_ = max(min(torque_,self.max_aaccel),-self.max_aaccel)
             self.torque = [0,0,torque_]
-            print(self.torque)
             
             for i in range(2):
                 if self.vel[i] + self.dt*self.force[i] > self.max_vel or self.vel[i] + self.dt*self.force[i] < -self.max_vel:
