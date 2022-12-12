@@ -3,7 +3,7 @@ record:
 simulation:
   horizon: 600 #s
   dt: 0.01
-  policy_dt: 1.
+  policy_dt: 0.1
   pad_l: 5
   entropy_decay: 1.
   waypoint_dist: 1.
