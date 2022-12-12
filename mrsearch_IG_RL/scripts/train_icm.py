@@ -18,9 +18,9 @@ if __name__ == "__main__":
     ## training params
     total_train_steps = 500_000 # train_steps % batch_size == 0
     device = torch.device('mps')
-    n_steps = 128
+    n_steps = 64
     buffer_size = n_steps * num_envs
-    batch_size = 8192
+    batch_size = 4096
     assert buffer_size % batch_size == 0
     policy_kwargs = dict(features_extractor_class=IdentityExtractor,normalize_images=False)
 

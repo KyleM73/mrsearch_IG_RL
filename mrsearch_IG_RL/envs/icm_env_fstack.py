@@ -61,6 +61,7 @@ class icm_env_fstack(Env):
         ## reset entropy
         self.entropy = torch.where(self.map==1,1,0)
         self.detection = False
+        self.collision = False
         self.done = False
         self.action = np.array([0.])
         self.intrinsic_rewards = [torch.tensor([0.]),torch.tensor([0.])]
@@ -116,6 +117,7 @@ class icm_env_fstack(Env):
         self.waypt_offset = self.waypt_dist*np.array([np.cos(self.desired_heading),np.sin(self.desired_heading),0*self.desired_heading]).reshape((-1,))
         self.waypt = np.array(self.pose) + self.waypt_offset
         ## step physics
+        self.collision = False
         for _ in range(self.repeat_action):
             err = self.waypt - np.array(self.pose)
             force_ = self.Kp*err/self.mass
@@ -141,6 +143,11 @@ class icm_env_fstack(Env):
 
             self.client.stepSimulation()
             self._get_pose()
+
+            ## collision detection
+            ctx = p.getContactPoints(self.robot,self.walls)
+            if len(ctx) > 0:
+                self.collision = True
 
         ## TODO
         # derive PD controller for double integrator?
@@ -170,6 +177,9 @@ class icm_env_fstack(Env):
         if self.detection:
             self.done = True
             dictRew["Re"] = self.lmbda*self.detection_reward
+        if self.collision:
+            self.done = True
+            dictRew["Collision"] = self.collision_reward
         elif self.t >= self.max_steps:
             self.done = True
 
@@ -421,6 +431,7 @@ class icm_env_fstack(Env):
 
         ## reward params
         self.detection_reward = self.cfg["rewards"]["detection"]
+        self.collision_reward = self.cfg["rewards"]["collision"]
         self.beta = self.cfg["rewards"]["beta"]
         self.lmbda = self.cfg["rewards"]["lambda"]
         self.eta = self.cfg["rewards"]["eta"]
