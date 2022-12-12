@@ -13,14 +13,14 @@ if __name__ == "__main__":
 
     ## env params
     env_id = "icm_search_fstack-v0"
-    num_envs = 64
+    num_envs = 2
 
     ## training params
-    total_train_steps = 500_000 # train_steps % batch_size == 0
+    total_train_steps = 1_000_000 # train_steps % batch_size == 0
     device = torch.device('mps')
     n_steps = 64
     buffer_size = n_steps * num_envs
-    batch_size = 4096
+    batch_size = 128
     assert buffer_size % batch_size == 0
     policy_kwargs = dict(features_extractor_class=IdentityExtractor,normalize_images=False)
 
