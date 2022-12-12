@@ -1,7 +1,7 @@
 from mrsearch_IG_RL.external import *
 from mrsearch_IG_RL import PATH_DIR,CFG_DIR
 
-class icm_env(Env):
+class icm_env_fstack(Env):
     def __init__(self,training=True,record=False,cfg=None,plot=False,vecenv=True):
         self.dt = datetime.datetime.now().strftime('%m%d_%H%M')
         if isinstance(cfg,str):
@@ -227,9 +227,9 @@ class icm_env(Env):
 
     def _get_crop(self):
         r,c = self.pose_rc
-        #entropy_marked = self.entropy.clone()
-        #entropy_marked[r-5:r+6,c-5:c+6] = 1
-        entropy_marked = torch.where(self.map==1,1.,0.)
+        entropy_marked = self.entropy.clone()
+        entropy_marked[r-5:r+6,c-5:c+6] = 1
+        #entropy_marked = torch.where(self.map==1,1.,0.)
         # left side
         if self.pose_rc[1] < self.obs_w/2:
             self.crop = entropy_marked[:,:self.obs_w]

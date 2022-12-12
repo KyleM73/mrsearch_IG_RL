@@ -13,7 +13,7 @@ args = parser.parse_args()
 
 if __name__ == "__main__":
     env = mrsearch_IG_RL.envs.icm_env(not args.simulate,not args.no_record,CFG_DIR+"/icm.yaml",args.plot)
-    if args.no_load:
+    if not args.no_load:
         model_path = args.filename
         model = ICM_PPO.load(model_path,env,custom_objects={"CustomModel": ActorCriticICM})
     else:
@@ -23,7 +23,7 @@ if __name__ == "__main__":
 
     for _ in range(env.max_steps+1):
         ob = torch.from_numpy(ob)
-        if not args.zero_action:
+        if not args.no_load:
             action, states, probs, intrinsic_rewards = model.policy(ob)
         else:
             action, states, probs, intrinsic_rewards = model(ob)

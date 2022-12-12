@@ -10,7 +10,7 @@ simulation:
   Kp: 1.
   Kd: 0.
   Ki: 0.
-  n_frames: 5
+  n_frames: 20
 environment:
   height: 10
   width: 20

@@ -16,7 +16,7 @@ if __name__ == "__main__":
     num_envs = 64
 
     ## training params
-    total_train_steps = 1_000_000 # train_steps % batch_size == 0
+    total_train_steps = 500_000 # train_steps % batch_size == 0
     device = torch.device('mps')
     n_steps = 128
     buffer_size = n_steps * num_envs

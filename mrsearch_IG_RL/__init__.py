@@ -73,7 +73,7 @@ ext.gym.envs.registration.register(
     id="icm_search_fstack-v0",
     # path to the class for creating the env
     # Note: entry_point also accept a class as input (and not only a string)
-    entry_point="mrsearch_IG_RL.envs:icm_env",
+    entry_point="mrsearch_IG_RL.envs:icm_env_fstack",
     kwargs={
     'training' : True,
     'record' : False,
