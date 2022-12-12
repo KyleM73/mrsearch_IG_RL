@@ -1,12 +1,4 @@
-from typing import Callable, Dict, List, Optional, Tuple, Type, Union
-
-import numpy as np
-import gym
-import torch
-import torch.nn as nn
-
-from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
-from stable_baselines3.common.policies import ActorCriticPolicy
+from mrsearch_IG_RL.external import *
 
 class IdentityExtractor(BaseFeaturesExtractor):
     def __init__(self, observation_space: gym.Space):
@@ -127,7 +119,7 @@ class ICMPolicy(nn.Module):
         pred_err_encoding = predicted_encoded_state-encoded_state
         Lf = 0.5*torch.sum(torch.square(pred_err_encoding),dim=-1)
 
-        return Li.cpu(),Lf.cpu()
+        return torch.cat((Li,Lf),dim=0)
 
 class ActorCriticICM(ActorCriticPolicy):
     def __init__(
@@ -180,6 +172,7 @@ class ActorCriticICM(ActorCriticPolicy):
         if self.last_obs is None:
             self.last_obs = obs
         intrinsic_rewards = self.icm_extractor(obs,self.last_obs,actions) #(Li,Lf)
+        intrinsic_rewards = intrinsic_rewards.reshape((obs.size()[0],)+(-1,))
         self.last_obs = obs
         return actions, values, log_prob, intrinsic_rewards
 
@@ -187,54 +180,64 @@ if __name__ == "__main__":
     import numpy as np
     from gym import spaces
     obs_space = spaces.Box(low=-1,high=1,shape=(1,201,201),dtype=np.float32)
+    act_space = spaces.Box(low=-1,high=1,shape=(1,),dtype=np.float32)
 
-    s1 = torch.as_tensor(obs_space.sample()[None]).float()
-    s2 = torch.as_tensor(obs_space.sample()[None]).float()
+    pi = ActorCriticICM(obs_space,act_space)
+    obs = torch.as_tensor(obs_space.sample()[None]).float()
+    obs4d = torch.cat((obs,obs,obs,obs),dim=0)
+    out = pi(obs4d)
+    print(out)
 
-    print(s1.size())
-    print(s2.size())
 
-    encoder = Encoder(obs_space)
-    phis1 = encoder(s1)
-    phis2 = encoder(s2)
 
-    print(phis1.size())
-    print(phis2.size())
+    """
+        s1 = torch.as_tensor(obs_space.sample()[None]).float()
+        s2 = torch.as_tensor(obs_space.sample()[None]).float()
 
-    decoder = Decoder()
-    a_hat = decoder(phis1,phis2)
+        print(s1.size())
+        print(s2.size())
 
-    print(a_hat.size())
+        encoder = Encoder(obs_space)
+        phis1 = encoder(s1)
+        phis2 = encoder(s2)
 
-    statepredictor = StatePredictor()
-    phis2_hat = statepredictor(phis1,a_hat)
+        print(phis1.size())
+        print(phis2.size())
 
-    print(phis2_hat.size())
-"""
+        decoder = Decoder()
+        a_hat = decoder(phis1,phis2)
 
-self.action_dist is set
+        print(a_hat.size())
 
-self.action_dist.proba_distribution(mean_actions, self.log_std, latent_pi)
-mean_actions = self.action_net(latent_pi)
-    int(np.prod(action_space.shape))
+        statepredictor = StatePredictor()
+        phis2_hat = statepredictor(phis1,a_hat)
 
-    if isinstance(action_space, spaces.Box):
-        cls = StateDependentNoiseDistribution if use_sde else DiagGaussianDistribution
-        return cls(get_action_dim(action_space), **dist_kwargs)
+        print(phis2_hat.size())
+    """
+    """
+    self.action_dist is set
 
-    self.action_dist = make_proba_distribution(action_space, use_sde=use_sde, dist_kwargs=dist_kwargs)
+    self.action_dist.proba_distribution(mean_actions, self.log_std, latent_pi)
+    mean_actions = self.action_net(latent_pi)
+        int(np.prod(action_space.shape))
 
-    dist_kwargs = {
-                "full_std": full_std,
-                "squash_output": squash_output,
-                "use_expln": use_expln,
-                "learn_features": False,
-            }
+        if isinstance(action_space, spaces.Box):
+            cls = StateDependentNoiseDistribution if use_sde else DiagGaussianDistribution
+            return cls(get_action_dim(action_space), **dist_kwargs)
 
-"""
-# action space:
-# [th, Ri, Li, Lf]
-# jk
-# have forward return 4 terms
-# see ICM_PPO
-# also reward terms input in env.step
+        self.action_dist = make_proba_distribution(action_space, use_sde=use_sde, dist_kwargs=dist_kwargs)
+
+        dist_kwargs = {
+                    "full_std": full_std,
+                    "squash_output": squash_output,
+                    "use_expln": use_expln,
+                    "learn_features": False,
+                }
+
+    """
+    # action space:
+    # [th, Ri, Li, Lf]
+    # jk
+    # have forward return 4 terms
+    # see ICM_PPO
+    # also reward terms input in env.step

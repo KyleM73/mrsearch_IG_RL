@@ -47,6 +47,38 @@ ext.gym.envs.registration.register(
     'training' : True,
     'record' : False,
     'cfg': CFG_DIR+cfg.icm_cfg,
-    'plot' : False
+    'plot' : False,
+    'vecenv' : False
+    },
+)
+## TESTING
+ext.gym.envs.registration.register(
+    # unique identifier for the env `name-version`
+    id="icm_search-v1",
+    # path to the class for creating the env
+    # Note: entry_point also accept a class as input (and not only a string)
+    entry_point="mrsearch_IG_RL.envs:icm_env",
+    order_enforce=False,
+    kwargs={
+    'training' : True,
+    'record' : False,
+    'cfg': CFG_DIR+cfg.icm_cfg,
+    'plot' : False,
+    'vecenv' : False
+    },
+)
+
+ext.gym.envs.registration.register(
+    # unique identifier for the env `name-version`
+    id="icm_search_fstack-v0",
+    # path to the class for creating the env
+    # Note: entry_point also accept a class as input (and not only a string)
+    entry_point="mrsearch_IG_RL.envs:icm_env",
+    kwargs={
+    'training' : True,
+    'record' : False,
+    'cfg': CFG_DIR+cfg.icm_cfg,
+    'plot' : False,
+    'vecenv' : False
     },
 )

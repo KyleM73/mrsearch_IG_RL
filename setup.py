@@ -14,6 +14,8 @@ setup(name='mrsearch_IG_RL',
             'pyyaml',
             'argparse',
             'tqdm',
-            'rich'
+            'rich',
+            'torchviz',
+            'jupyter'
             ]
 )

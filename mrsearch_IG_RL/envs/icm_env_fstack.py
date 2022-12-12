@@ -27,7 +27,7 @@ class icm_env(Env):
         # observe : cropped entropy map
         # act     : XY waypts, desired heading
         self.obs_w = min(self.h,self.w) + 1
-        self.observation_space = spaces.Box(low=-1,high=1,shape=(1,self.obs_w,self.obs_w),dtype=np.float32)
+        self.observation_space = spaces.Box(low=-1,high=1,shape=(self.n_frames,self.obs_w,self.obs_w),dtype=np.float32)
         self.action_space = spaces.Box(low=-1,high=1,shape=(1,),dtype=np.float32)
 
     def reset(self):
@@ -73,7 +73,7 @@ class icm_env(Env):
         self._get_obs()
         self._get_rew()
 
-        return torch.unsqueeze(self.crop,0).numpy()
+        return self.crop_frames.numpy()
 
     def step(self,action):
         self.action = action[0]
@@ -105,7 +105,7 @@ class icm_env(Env):
                 plt.show()
                 self.close()
 
-        return torch.unsqueeze(self.crop,0).numpy(), self.reward, self.done, self.dictLog
+        return self.crop_frames.numpy(), self.reward, self.done, self.dictLog
 
     def close(self):
         self.client.disconnect()
@@ -244,6 +244,11 @@ class icm_env(Env):
                 self.crop = entropy_marked[:,self.pose_rc[1]-self.obs_w//2:self.pose_rc[1]+self.obs_w//2]
         assert self.crop.size() == (self.obs_w,self.obs_w)
 
+        if self.t == 0:
+            self.crop_frames = torch.unsqueeze(self.crop,0).repeat(self.n_frames,1,1)
+        else:
+            self.crop_frames = torch.cat((torch.unsqueeze(self.crop,0),self.crop_frames),dim=0)[:self.n_frames,:,:]
+
     def _decay_entropy(self):
         self.entropy = self.entropy_decay * self.entropy
 
@@ -379,6 +384,7 @@ class icm_env(Env):
         self.Kp = self.cfg["simulation"]["Kp"]
         self.Kd = self.cfg["simulation"]["Kd"]
         self.Ki = self.cfg["simulation"]["Ki"]
+        self.n_frames = self.cfg["simulation"]["n_frames"]
         
         ## environment params
         self.resolution = self.cfg["environment"]["resolution"]

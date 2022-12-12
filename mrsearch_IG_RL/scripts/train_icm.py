@@ -12,15 +12,15 @@ def makeEnvs(env_id):
 if __name__ == "__main__":
 
     ## env params
-    env_id = "icm_search-v0"
-    num_envs = 2
+    env_id = "icm_search_fstack-v0"
+    num_envs = 64
 
     ## training params
     total_train_steps = 1_000_000 # train_steps % batch_size == 0
     device = torch.device('mps')
-    n_steps = 512
+    n_steps = 128
     buffer_size = n_steps * num_envs
-    batch_size = 1024
+    batch_size = 8192
     assert buffer_size % batch_size == 0
     policy_kwargs = dict(features_extractor_class=IdentityExtractor,normalize_images=False)
 
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     save_path = '{}/{}'.format(tb_log,"model")
 
     ## ========== train model ==========
-    env = ICM_Monitor(ICM_SubprocVecEnv([makeEnvs(env_id) for i in range(num_envs)],start_method='fork')) #forkserver
+    env = ICM_Monitor(ICM_SubprocVecEnv([makeEnvs(env_id) for i in range(num_envs)],start_method='forkserver')) #forkserver
     model = ICM_PPO(
         ActorCriticICM,env,policy_kwargs=policy_kwargs,
         n_steps=n_steps,batch_size=batch_size,verbose=1,
