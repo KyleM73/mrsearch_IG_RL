@@ -45,7 +45,8 @@ class Decoder(nn.Module):
         self.linear = nn.Sequential(
             nn.Linear(encoded_state_dim+encoded_state_dim, features_dim),
             nn.ReLU(),
-            nn.Linear(features_dim, action_dim)
+            nn.Linear(features_dim, action_dim),
+            nn.Tanh() #[-1,1]
             )
 
     def forward(self, encoded_state: torch.Tensor, last_encoded_state: torch.Tensor):

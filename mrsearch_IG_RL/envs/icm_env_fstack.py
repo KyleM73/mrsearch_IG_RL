@@ -2,7 +2,7 @@ from mrsearch_IG_RL.external import *
 from mrsearch_IG_RL import PATH_DIR,CFG_DIR
 
 class icm_env_fstack(Env):
-    def __init__(self,training=True,record=False,cfg=None,plot=False,vecenv=True):
+    def __init__(self,training=True,record=False,cfg=None,plot=False,vecenv=False):
         self.dt = datetime.datetime.now().strftime('%m%d_%H%M')
         if isinstance(cfg,str):
             assert os.path.exists(cfg), "configuration file specified does not exist"
@@ -39,15 +39,16 @@ class icm_env_fstack(Env):
         ## setup ground
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
         self.ground = p.loadURDF("plane.urdf")
-        p.changeDynamics(self.ground, -1, lateralFriction=0.0) 
+        p.changeDynamics(self.ground, -1, lateralFriction=0.0,spinningFriction=0.0) 
 
         ## setup walls
         self.walls = p.loadURDF(self.map_urdf,useFixedBase=True)
-        p.changeDynamics(self.walls, -1, lateralFriction=1.0)
+        p.changeDynamics(self.walls, -1, lateralFriction=0.0,spinningFriction=0.0)
 
         ## setup robot
         self.pose,self.ori = self._get_random_pose()
         self.robot = p.loadURDF(self.robot_urdf,basePosition=self.pose,baseOrientation=E2Q([0,0,self.ori]))
+        p.changeDynamics(self.robot, -1, lateralFriction=0.0,spinningFriction=0.0)
         
         ## setup target
         self.target_pose,_ = self._get_random_pose()
@@ -148,6 +149,7 @@ class icm_env_fstack(Env):
             ctx = p.getContactPoints(self.robot,self.walls)
             if len(ctx) > 0:
                 self.collision = True
+                #break
 
         ## TODO
         # derive PD controller for double integrator?
@@ -178,7 +180,7 @@ class icm_env_fstack(Env):
             self.done = True
             dictRew["Re"] = self.lmbda*self.detection_reward
         if self.collision:
-            self.done = True
+            #self.done = True
             dictRew["Collision"] = self.collision_reward
         elif self.t >= self.max_steps:
             self.done = True
@@ -290,6 +292,7 @@ class icm_env_fstack(Env):
                 self.entropy[hr,hc] = 1
                 if hit[2] < self.target_threshold:
                     self.detection = True
+                    print("Target found.")
             free = self._bresenham((sr,sc),(hr,hc))
             for f in free:
                 self.entropy[f[0],f[1]] = -1

@@ -10,7 +10,7 @@ simulation:
   Kp: 1.
   Kd: 0.
   Ki: 0.
-  n_frames: 20
+  n_frames: 10
 environment:
   height: 10
   width: 20
@@ -38,7 +38,7 @@ lidar:
   FOV: 360 #degrees
   threads: 0 #-1 is single threaded, 0 is 'all', n is exactly n threads'
 rewards:
-  detection: 100.
+  detection: 1000.
   collision: -100.
   beta: 0.2
   lambda: 0.1
