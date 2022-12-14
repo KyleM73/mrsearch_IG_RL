@@ -36,7 +36,7 @@ lidar:
   scan_height: 0.6
   target_threshold: 3 #meters
   FOV: 360 #degrees
-  threads: 0 #-1 is single threaded, 0 is 'all', n is exactly n threads'
+  threads: -1 #-1 is single threaded, 0 is 'all', n is exactly n threads'
 rewards:
   detection: 1000.
   collision: -10.
