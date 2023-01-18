@@ -53,6 +53,7 @@ class icm_env_fstack(Env):
         ## setup target
         self.target_pose,_ = self._get_random_pose()
         self.target_pose[2] = 0.5
+        self.tgt_des_th = random.uniform(-math.pi,math.pi)
         self.target = p.loadURDF(self.target_urdf,basePosition=self.target_pose,useFixedBase=True)
         
         ## initialize objects
@@ -112,6 +113,19 @@ class icm_env_fstack(Env):
     def close(self):
         self.client.disconnect()
 
+    
+
+    def _update_target(self):
+        
+        ## collision detection
+        ctx = p.getContactPoints(self.target,self.walls)
+        heading = self.tgt_des_th
+        if len(ctx) > 0:
+            ## if collision, generate new random heading
+            heading = random.uniform(-math.pi,math.pi)
+
+        return heading
+
     def _act(self):
         self.desired_heading = math.pi*self.action #[-pi,pi]
 
@@ -120,6 +134,19 @@ class icm_env_fstack(Env):
         ## step physics
         self.collision = False
         for _ in range(self.repeat_action):
+
+            ## Update the Target heading
+            self.tgt_des_th = self.update_target()
+            tgt_force_ = self.Kp*err/self.mass
+            tgt_force_ = np.clip(tgt_force_,-self.tgt_max_accel,self.tgt_max_accel)
+            for i in range(2):
+                if self.tgt_vel[i] + self.dt*tgt_force_[i] > self.tgt_max_vel or self.tgt_vel[i] + self.dt*tgt_force_[i] < -self.tgt_max_vel:
+                    tgt_force_[i] = 0
+            tgt_force_[2] = 0
+
+            p.applyExternalForce(self.target,-1,tgt_force_,[0,0,0],p.LINK_FRAME)
+
+
             err = self.waypt - np.array(self.pose)
             force_ = self.Kp*err/self.mass
             self.force = np.clip(force_,-self.max_accel,self.max_accel)
@@ -201,6 +228,7 @@ class icm_env_fstack(Env):
         self.pose_rc = self._xy2rc(*self.pose[:2])
         self.ori = Q2E(oris)[2]
         self.vel,self.avel = p.getBaseVelocity(self.robot)
+        self.tgt_vel,self.tgt_avel = p.getBaseVelocity(self.target)
 
         self.target_pose,_ = p.getBasePositionAndOrientation(self.target)
         self.target_pose_rc = self._xy2rc(*self.target_pose[:2])
@@ -438,6 +466,10 @@ class icm_env_fstack(Env):
         self.beta = self.cfg["rewards"]["beta"]
         self.lmbda = self.cfg["rewards"]["lambda"]
         self.eta = self.cfg["rewards"]["eta"]
+
+        ## target params
+        self.tgt_max_accel = self.cfg["target"]["max_linear_accel"]
+        self.tgt_max_vel = self.cfg["target"]["max_linear_vel"]
 
         ## kernel
         self.k = torch.ones((10,10))
