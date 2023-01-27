@@ -26,7 +26,7 @@ class icm_env_fstack(Env):
         ## model I/O
         # observe : cropped entropy map
         # act     : XY waypts, desired heading
-        self.obs_w = min(self.h,self.w) + 1
+        self.obs_w = self.obs_w if self.obs_w is not None else min(self.h,self.w) + 1
         self.observation_space = spaces.Box(low=-1,high=1,shape=(self.n_frames,self.obs_w,self.obs_w),dtype=np.float32)
         self.action_space = spaces.Box(low=-1,high=1,shape=(1,),dtype=np.float32)
 
@@ -96,14 +96,18 @@ class icm_env_fstack(Env):
             self.ayy.append(self.force[1])
             self.ath.append(self.torque[2])
             if self.done:
-                fig, ax = plt.subplots(3, 1)
-                ax[0].plot(self.axx)
-                ax[1].plot(self.ayy)
-                ax[2].plot(self.ath)
+                fig, ax = plt.subplots(3, 1, sharex="all")
+                ax[0].plot(self.axx,label="aX")
+                ax[0].legend()
+                ax[1].plot(self.ayy,label="aY")
+                ax[1].legend()
+                ax[2].plot(self.ath,label="aTh")
+                ax[2].legend()
                 fig2, ax2 = plt.subplots(1, 1)
                 ax2.plot(self.wayptx,self.waypty)
                 ax2.set_xlim([-10, 10])
                 ax2.set_ylim([-5, 5])
+                ax2.set_title("Trajectory")
                 plt.show()
                 self.close()
 
@@ -182,7 +186,7 @@ class icm_env_fstack(Env):
         if self.collision:
             #self.done = True
             dictRew["Collision"] = self.collision_reward
-        elif self.t >= self.max_steps:
+        if self.t >= self.max_steps:
             self.done = True
 
         self.reward = 0
@@ -233,27 +237,66 @@ class icm_env_fstack(Env):
     def _save_videos(self):
         ani = animation.ArtistAnimation(self.fig,self.frames,interval=int(1000/self.fps),blit=True,repeat=False)
         ani.save(PATH_DIR+self.log_dir+self.log_name,writer=self.writer)
+        print("Video saved to "+PATH_DIR+self.log_dir+self.log_name)
 
         ani_obs = animation.ArtistAnimation(self.fig_obs,self.frames_obs,interval=int(1000/self.fps),blit=True,repeat=False)
         ani_obs.save(PATH_DIR+self.log_dir+self.log_name_obs,writer=self.writer)
+        print("Video saved to "+PATH_DIR+self.log_dir+self.log_name_obs)
 
     def _get_crop(self):
         r,c = self.pose_rc
         entropy_marked = self.entropy.clone()
-        entropy_marked[r-5:r+6,c-5:c+6] = 1
+        entropy_marked[r-2:r+3,c-2:c+3] = 1
+        #entropy_marked[r-5:r+6,c-5:c+6] = 1
         #entropy_marked = torch.where(self.map==1,1.,0.)
-        # left side
-        if self.pose_rc[1] < self.obs_w/2:
-            self.crop = entropy_marked[:,:self.obs_w]
-        #right side
-        elif self.pose_rc[1] > self.w - self.obs_w/2:
-            self.crop = entropy_marked[:,-self.obs_w:]
-        #center crop on robot
+        # top side
+        if r < self.obs_w/2:
+            # left side
+            if c < self.obs_w/2:
+                self.crop = entropy_marked[:self.obs_w,:self.obs_w]
+            # right side
+            elif c > self.w - self.obs_w/2:
+                self.crop = entropy_marked[:self.obs_w,-self.obs_w:]
+            else:
+                if self.obs_w % 2:
+                    self.crop = entropy_marked[:self.obs_w,c-self.obs_w//2:c+self.obs_w//2+1]
+                else:
+                    self.crop = entropy_marked[:self.obs_w,c-self.obs_w//2:c+self.obs_w//2]
+        # bottom side
+        elif r > self.h - self.obs_w/2:
+            # left side
+            if c < self.obs_w/2:
+                self.crop = entropy_marked[-self.obs_w:,:self.obs_w]
+            # right side
+            elif c > self.w - self.obs_w/2:
+                self.crop = entropy_marked[-self.obs_w:,-self.obs_w:]
+            else:
+                if self.obs_w % 2:
+                    self.crop = entropy_marked[-self.obs_w:,c-self.obs_w//2:c+self.obs_w//2+1]
+                else:
+                    self.crop = entropy_marked[-self.obs_w:,c-self.obs_w//2:c+self.obs_w//2]
         else:
             if self.obs_w % 2:
-                self.crop = entropy_marked[:,self.pose_rc[1]-self.obs_w//2:self.pose_rc[1]+self.obs_w//2+1]
+                # left side
+                if c < self.obs_w/2:
+                    self.crop = entropy_marked[r-self.obs_w//2:r+self.obs_w//2+1,:self.obs_w]
+                # right side
+                elif c > self.w - self.obs_w/2:
+                    self.crop = entropy_marked[r-self.obs_w//2:r+self.obs_w//2+1,-self.obs_w:]
+                #center crop on robot
+                else:
+                    self.crop = entropy_marked[r-self.obs_w//2:r+self.obs_w//2+1,c-self.obs_w//2:c+self.obs_w//2+1]
             else:
-                self.crop = entropy_marked[:,self.pose_rc[1]-self.obs_w//2:self.pose_rc[1]+self.obs_w//2]
+                # left side
+                if c < self.obs_w/2:
+                    self.crop = entropy_marked[r-self.obs_w//2:r+self.obs_w//2,:self.obs_w]
+                # right side
+                elif c > self.w - self.obs_w/2:
+                    self.crop = entropy_marked[r-self.obs_w//2:r+self.obs_w//2,-self.obs_w:]
+                #center crop on robot
+                else:
+                    self.crop = entropy_marked[r-self.obs_w//2:r+self.obs_w//2,c-self.obs_w//2:c+self.obs_w//2]
+        
         assert self.crop.size() == (self.obs_w,self.obs_w)
 
         if self.t == 0:
@@ -398,6 +441,7 @@ class icm_env_fstack(Env):
         self.Kd = self.cfg["simulation"]["Kd"]
         self.Ki = self.cfg["simulation"]["Ki"]
         self.n_frames = self.cfg["simulation"]["n_frames"]
+        self.obs_w = self.cfg["simulation"]["obs_dim"]
         
         ## environment params
         self.resolution = self.cfg["environment"]["resolution"]

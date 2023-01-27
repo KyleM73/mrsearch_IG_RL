@@ -11,16 +11,14 @@ def makeEnvs(env_id):
 
 if __name__ == "__main__":
 
-    ## env params
-    env_id = "icm_search_fstack-v0"
-    num_envs = 2
-
     ## training params
+    env_id = "icm_search_fstack-v0"
     total_train_steps = 1_000_000 # train_steps % batch_size == 0
     device = torch.device('mps')
-    n_steps = 64
+    num_envs = 2
+    n_steps = 256
     buffer_size = n_steps * num_envs
-    batch_size = 128
+    batch_size = 512
     assert buffer_size % batch_size == 0
     policy_kwargs = dict(features_extractor_class=IdentityExtractor,normalize_images=False)
 

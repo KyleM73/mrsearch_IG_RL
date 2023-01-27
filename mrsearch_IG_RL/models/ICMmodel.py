@@ -7,7 +7,7 @@ class IdentityExtractor(BaseFeaturesExtractor):
     def forward(self, observations: torch.Tensor) -> torch.Tensor:
         return observations
 
-class Encoder(nn.Module):
+class Encoder201(nn.Module):
     def __init__(self, observation_space: gym.spaces.Box, features_dim: int = 256):
         super(Encoder, self).__init__()
         n_input_dim = observation_space.shape[0]
@@ -38,8 +38,72 @@ class Encoder(nn.Module):
             x = nn.Unflatten(0,(observations.size()[0],-1))(x) 
         return x
 
+class Encoder64(nn.Module):
+    def __init__(self, observation_space: gym.spaces.Box, features_dim: int = 256):
+        super(Encoder, self).__init__()
+        n_input_dim = observation_space.shape[0]
+        self.cnn = nn.Sequential(
+            nn.Conv2d(n_input_dim, 32, kernel_size=8, stride=2, padding=0), #64 -> 29
+            nn.ELU(),
+            nn.Conv2d(32, 32, kernel_size=5, stride=2, padding=0), #29 -> 13
+            nn.ELU(),
+            nn.Conv2d(32, 32, kernel_size=3, stride=2, padding=0), #13-> 6
+            nn.ELU(),
+            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=0), #6 -> 4
+            nn.ELU(),
+            nn.Flatten(), #[-1,512]
+            #nn.Unflatten(0,(1,-1)), #[1,512]
+        )
+        # Compute shape by doing one forward pass
+        with torch.no_grad():
+            self.n_flatten = self.cnn(
+                torch.as_tensor(observation_space.sample()[None]).float()
+            ).shape[1]
+
+        #self.linear = nn.Sequential(nn.Linear(self.n_flatten, features_dim), nn.ELU())
+
+    def forward(self, observations: torch.Tensor) -> torch.Tensor:
+        x = self.cnn(observations)
+        if x.size()[0] != observations.size()[0] or x.size()[1] != self.n_flatten:
+            x = nn.Flatten(0)(x)
+            #x = nn.Unflatten(0,(observations.size()[0],-1))(x) 
+            x = nn.Unflatten(0,(1,-1))(x)
+        return x
+
+class Encoder(nn.Module):
+    def __init__(self, observation_space: gym.spaces.Box, features_dim: int = 256):
+        super(Encoder, self).__init__()
+        n_input_dim = observation_space.shape[0]
+        self.cnn = nn.Sequential(
+            nn.Conv2d(n_input_dim, 32, kernel_size=8, stride=2, padding=0), #96 -> 45
+            nn.ELU(),
+            nn.Conv2d(32, 32, kernel_size=5, stride=2, padding=0), #45 -> 21
+            nn.ELU(),
+            nn.Conv2d(32, 32, kernel_size=5, stride=2, padding=0), #21-> 9
+            nn.ELU(),
+            nn.Conv2d(32, 32, kernel_size=3, stride=2, padding=0), #9 -> 4
+            nn.ELU(),
+            nn.Flatten(), #[-1,512]
+            #nn.Unflatten(0,(1,-1)), #[1,512]
+        )
+        # Compute shape by doing one forward pass
+        with torch.no_grad():
+            self.n_flatten = self.cnn(
+                torch.as_tensor(observation_space.sample()[None]).float()
+            ).shape[1]
+
+        #self.linear = nn.Sequential(nn.Linear(self.n_flatten, features_dim), nn.ELU())
+
+    def forward(self, observations: torch.Tensor) -> torch.Tensor:
+        x = self.cnn(observations)
+        if x.size()[0] != observations.size()[0] or x.size()[1] != self.n_flatten:
+            x = nn.Flatten(0)(x)
+            #x = nn.Unflatten(0,(observations.size()[0],-1))(x) 
+            x = nn.Unflatten(0,(1,-1))(x)
+        return x
+
 class Decoder(nn.Module):
-    def __init__(self, encoded_state_dim: int = 288, features_dim: int = 256, action_dim: int = 1):
+    def __init__(self, encoded_state_dim: int = 512, features_dim: int = 256, action_dim: int = 1):
         super(Decoder, self).__init__()
 
         self.linear = nn.Sequential(
@@ -55,7 +119,7 @@ class Decoder(nn.Module):
         return x
 
 class StatePredictor(nn.Module):
-    def __init__(self, encoded_state_dim: int = 288, features_dim: int = 256, action_dim: int = 1):
+    def __init__(self, encoded_state_dim: int = 512, features_dim: int = 256, action_dim: int = 1):
         super(StatePredictor, self).__init__()
 
         self.linear = nn.Sequential(
@@ -173,21 +237,22 @@ class ActorCriticICM(ActorCriticPolicy):
         if self.last_obs is None:
             self.last_obs = obs
         intrinsic_rewards = self.icm_extractor(obs,self.last_obs,actions) #(Li,Lf)
-        intrinsic_rewards = intrinsic_rewards.reshape((obs.size()[0],)+(-1,))
+        intrinsic_rewards = intrinsic_rewards.reshape((2,)+(-1,))
         self.last_obs = obs
         return actions, values, log_prob, intrinsic_rewards
 
 if __name__ == "__main__":
     import numpy as np
     from gym import spaces
-    obs_space = spaces.Box(low=-1,high=1,shape=(1,201,201),dtype=np.float32)
+    obs_space = spaces.Box(low=-1,high=1,shape=(1,64,64),dtype=np.float32)
     act_space = spaces.Box(low=-1,high=1,shape=(1,),dtype=np.float32)
 
     pi = ActorCriticICM(obs_space,act_space)
     obs = torch.as_tensor(obs_space.sample()[None]).float()
+    print(obs.size())
     obs4d = torch.cat((obs,obs,obs,obs),dim=0)
-    out = pi(obs4d)
-    print(out)
+    out = pi(obs)
+    print(out[0].size())
 
 
 
