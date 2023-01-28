@@ -16,6 +16,7 @@ setup(name='mrsearch_IG_RL',
             'tqdm',
             'rich',
             'torchviz',
-            'jupyter'
+            'jupyter',
+            'PettingZoo'
             ]
 )

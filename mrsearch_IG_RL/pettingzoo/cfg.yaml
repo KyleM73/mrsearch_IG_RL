@@ -1,0 +1,48 @@
+agents:
+  agents: ['Robot1','Robot2']
+record:
+  log_dir: '/log/videos'
+simulation:
+  horizon: 600 #s
+  dt: 0.01
+  policy_dt: 0.1
+  pad_l: 5
+  entropy_decay: 1.
+  waypoint_dist: 1.
+  Kp: 1.
+  Kd: 0.
+  Ki: 0.
+  n_frames: 10
+  obs_dim: 96
+environment:
+  height: 10
+  width: 20
+  resolution: 0.05
+  scale_factor: 3
+  distance_data: '/assets/distance_data.npy'
+  filename: '/assets/map.png'
+  urdf: '/assets/map.urdf'
+  target_urdf: '/assets/target.urdf'
+robot:
+  urdf: '/assets/robot.urdf'
+  width: 0.5 #x
+  depth: 0.5 #y
+  height: 0.5 #z
+  mass: 1.
+  max_linear_accel: 0.1
+  max_linear_vel: 0.2
+  max_angular_accel: 0.1
+  max_angular_vel: 0.2
+lidar:
+  density: 0.2 #percentage of max scans to use
+  range: 3 #meters
+  scan_height: 0.6
+  target_threshold: 2 #meters
+  FOV: 360 #degrees
+  threads: -1 #-1 is single threaded, 0 is 'all', n is exactly n threads'
+rewards:
+  detection: 1000.
+  collision: -50.
+  beta: 0.2
+  lambda: 0.1
+  eta: 288.
