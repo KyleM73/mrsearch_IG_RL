@@ -1,0 +1,457 @@
+<?xml version="1.0"?>
+<robot name="walls">
+
+  <material name="concrete">
+    <color rgba="0.62 0.62 0.62 1"/>
+  </material>
+
+  <link name="base_link">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+       <mass value="0.00001"/>
+       <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+    </inertial>
+  </link>
+
+  <!-- outer border -->
+
+  <link name="left">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+       <mass value="1"/>
+       <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+    </inertial>
+    <collision>
+      <geometry>
+        <box size="0.05 10.05 2"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+    <visual>
+      <geometry>
+        <box size="0.05 10.05 2"/>
+      </geometry>
+      <material name="concrete"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </visual>
+  </link>
+
+  <joint name="left" type="fixed">
+    <parent link="base_link"/>
+    <child link="left"/>
+    <origin rpy="0 0 0" xyz="-10 0 1"/>
+  </joint>
+
+  <link name="right">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+       <mass value="1"/>
+       <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+    </inertial>
+    <collision>
+      <geometry>
+        <box size="0.05 10.05 2"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+    <visual>
+      <geometry>
+        <box size="0.05 10.05 2"/>
+      </geometry>
+      <material name="concrete"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </visual>
+  </link>
+
+  <joint name="right" type="fixed">
+    <parent link="base_link"/>
+    <child link="right"/>
+    <origin rpy="0 0 0" xyz="10.1 0 1"/>
+  </joint>
+
+  <link name="down">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+       <mass value="1"/>
+       <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+    </inertial>
+    <collision>
+      <geometry>
+        <box size="20.05 0.05 2"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+    <visual>
+      <geometry>
+        <box size="20.05 0.05 2"/>
+      </geometry>
+      <material name="concrete"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </visual>
+  </link>
+
+  <joint name="down" type="fixed">
+    <parent link="base_link"/>
+    <child link="down"/>
+    <origin rpy="0 0 0" xyz="0.05 -5 1"/>
+  </joint>
+
+  <link name="up">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+       <mass value="1"/>
+       <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+    </inertial>
+    <collision>
+      <geometry>
+        <box size="20.05 0.05 2"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+    <visual>
+      <geometry>
+        <box size="20.05 0.05 2"/>
+      </geometry>
+      <material name="concrete"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </visual>
+  </link>
+
+  <joint name="up" type="fixed">
+    <parent link="base_link"/>
+    <child link="up"/>
+    <origin rpy="0 0 0" xyz="0.05 5.05 1"/>
+  </joint>
+
+  <!-- upper right room -->
+
+  <link name="uright_vert">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+       <mass value="1"/>
+       <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+    </inertial>
+    <collision>
+      <geometry>
+        <box size="0.05 4.05 2"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+    <visual>
+      <geometry>
+        <box size="0.05 4.05 2"/>
+      </geometry>
+      <material name="concrete"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </visual>
+  </link>
+
+  <joint name="uright_vert" type="fixed">
+    <parent link="base_link"/>
+    <child link="uright_vert"/>
+    <origin rpy="0 0 0" xyz="7 2 1"/>
+  </joint>
+
+  <link name="uright_horiz">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+       <mass value="1"/>
+       <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+    </inertial>
+    <collision>
+      <geometry>
+        <box size="3.05 0.05 2"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+    <visual>
+      <geometry>
+        <box size="3.05 0.05 2"/>
+      </geometry>
+      <material name="concrete"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </visual>
+  </link>
+
+  <joint name="uright_horiz" type="fixed">
+    <parent link="base_link"/>
+    <child link="uright_horiz"/>
+    <origin rpy="0 0 0" xyz="8.55 0 1"/>
+  </joint>
+
+  <!-- table -->
+
+  <link name="table_left">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+       <mass value="1"/>
+       <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+    </inertial>
+    <collision>
+      <geometry>
+        <box size="0.05 1.3 2"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+    <visual>
+      <geometry>
+        <box size="0.05 1.3 2"/>
+      </geometry>
+      <material name="concrete"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </visual>
+  </link>
+
+  <joint name="table_left" type="fixed">
+    <parent link="base_link"/>
+    <child link="table_left"/>
+    <origin rpy="0 0 0" xyz="-0.55 2.675 1"/>
+  </joint>
+
+  <link name="table_right">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+       <mass value="1"/>
+       <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+    </inertial>
+    <collision>
+      <geometry>
+        <box size="0.05 1.3 2"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+    <visual>
+      <geometry>
+        <box size="0.05 1.3 2"/>
+      </geometry>
+      <material name="concrete"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </visual>
+  </link>
+
+  <joint name="table_right" type="fixed">
+    <parent link="base_link"/>
+    <child link="table_right"/>
+    <origin rpy="0 0 0" xyz="3.95 2.675 1"/>
+  </joint>
+
+  <link name="table">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+       <mass value="1"/>
+       <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+    </inertial>
+    <collision>
+      <geometry>
+        <box size="4.45 0.05 2"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+    <visual>
+      <geometry>
+        <box size="4.45 0.05 2"/>
+      </geometry>
+      <material name="concrete"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </visual>
+  </link>
+
+  <joint name="table" type="fixed">
+    <parent link="base_link"/>
+    <child link="table"/>
+    <origin rpy="0 0 0" xyz="1.7 2.05 1"/>
+  </joint>
+
+  <!-- center walls -->
+
+  <link name="center">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+       <mass value="1"/>
+       <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+    </inertial>
+    <collision>
+      <geometry>
+        <box size="16 0.05 2"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+    <visual>
+      <geometry>
+        <box size="16 0.05 2"/>
+      </geometry>
+      <material name="concrete"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </visual>
+  </link>
+
+  <joint name="center" type="fixed">
+    <parent link="base_link"/>
+    <child link="center"/>
+    <origin rpy="0 0 0" xyz="0 -2.95 1"/>
+  </joint>
+
+  <link name="center_right">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+       <mass value="1"/>
+       <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+    </inertial>
+    <collision>
+      <geometry>
+        <box size="0.05 2.9 2"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+    <visual>
+      <geometry>
+        <box size="0.05 2.9 2"/>
+      </geometry>
+      <material name="concrete"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </visual>
+  </link>
+
+  <joint name="center_right" type="fixed">
+    <parent link="base_link"/>
+    <child link="center_right"/>
+    <origin rpy="0 0 0" xyz="4.5 -1.475 1"/>
+  </joint>
+
+  <link name="center_right_horiz">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+       <mass value="1"/>
+       <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+    </inertial>
+    <collision>
+      <geometry>
+        <box size="3.5 0.05 2"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+    <visual>
+      <geometry>
+        <box size="3.5 0.05 2"/>
+      </geometry>
+      <material name="concrete"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </visual>
+  </link>
+
+  <joint name="center_right_horiz" type="fixed">
+    <parent link="base_link"/>
+    <child link="center_right_horiz"/>
+    <origin rpy="0 0 0" xyz="2.75 0 1"/>
+  </joint>
+
+  <link name="center_vert">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+       <mass value="1"/>
+       <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+    </inertial>
+    <collision>
+      <geometry>
+        <box size="0.05 3.5 2"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+    <visual>
+      <geometry>
+        <box size="0.05 3.5 2"/>
+      </geometry>
+      <material name="concrete"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </visual>
+  </link>
+
+  <joint name="center_vert" type="fixed">
+    <parent link="base_link"/>
+    <child link="center_vert"/>
+    <origin rpy="0 0 0" xyz="-1.6 -1.175 1"/>
+  </joint>
+
+  <link name="center_left_vert">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+       <mass value="1"/>
+       <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+    </inertial>
+    <collision>
+      <geometry>
+        <box size="0.05 5.5 2"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+    <visual>
+      <geometry>
+        <box size="0.05 5.5 2"/>
+      </geometry>
+      <material name="concrete"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </visual>
+  </link>
+
+  <joint name="center_left_vert" type="fixed">
+    <parent link="base_link"/>
+    <child link="center_left_vert"/>
+    <origin rpy="0 0 0" xyz="-8.025 -0.175 1"/>
+  </joint>
+
+  <link name="center_left_horiz">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+       <mass value="1"/>
+       <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+    </inertial>
+    <collision>
+      <geometry>
+        <box size="4 0.05 2"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+    <visual>
+      <geometry>
+        <box size="4 0.05 2"/>
+      </geometry>
+      <material name="concrete"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </visual>
+  </link>
+
+  <joint name="center_left_horiz" type="fixed">
+    <parent link="base_link"/>
+    <child link="center_left_horiz"/>
+    <origin rpy="0 0 0" xyz="-6 2.575 1"/>
+  </joint>
+
+  <link name="center_left_vert_down">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+       <mass value="1"/>
+       <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+    </inertial>
+    <collision>
+      <geometry>
+        <box size="0.05 4 2"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </collision>
+    <visual>
+      <geometry>
+        <box size="0.05 4 2"/>
+      </geometry>
+      <material name="concrete"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+    </visual>
+  </link>
+
+  <joint name="center_left_vert_down" type="fixed">
+    <parent link="base_link"/>
+    <child link="center_left_vert_down"/>
+    <origin rpy="0 0 0" xyz="-3.975 0.55 1"/>
+  </joint>
+
+</robot>
+

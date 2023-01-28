@@ -1,6 +1,7 @@
 import datetime
 import functools
 import gymnasium as gym
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pettingzoo as pz
@@ -10,7 +11,8 @@ import pybullet_utils.bullet_client as bc
 import torch
 import yaml
 
-import util #bresenham
+from mrsearch_IG_RL import PATH_DIR
+import util
 
 def wrap(env_fn, headless, record, cfg):
     env = env_fn(headless=headless, record=record, cfg=cfg)
@@ -74,6 +76,7 @@ class icm_env(pz.ParallelEnv):
         return gym.spaces.Box(
                 low=-1,high=1,shape=(1,),dtype=np.float32
             )
+    
     def observe(self, agent):
         return self.observations[agent]
 
@@ -90,7 +93,8 @@ class icm_env(pz.ParallelEnv):
         self.state = {agent: {"pose" : None, "ori" : None, "vel" : None} for agent in self.agents}
         self.observations = {agent: {"img" : None, "vec" : None} for agent in self.agents}
         self.collisions = {agent : False for agent in self.agents}
-        self.detections = {agent : False for agent in self.agents}
+        self.detection = False
+        self.forces = {agent : np.array([0,0,0]) for agent in self.agents}
         self.t = 0
 
         self._agent_selector = pz.utils.agent_selector(self.agents)
@@ -113,18 +117,22 @@ class icm_env(pz.ParallelEnv):
         p.changeDynamics(self.walls, -1, lateralFriction=0.0,spinningFriction=0.0)
 
         ## setup robots
+        self.pb_agents = {}
         for agent in self.agents:
             pose,ori = self._get_random_pose()
-            robot = p.loadURDF(self.robot_urdf, basePosition=pose, baseOrientation=E2Q([0,0,ori]))
+            robot = p.loadURDF(self.robot_urdf, basePosition=pose, baseOrientation=p.getQuaternionFromEuler([0,0,ori]))
             p.changeDynamics(robot, -1, lateralFriction=0.0, spinningFriction=0.0)
             self.observations[agent]["vec"] = np.array([0,ori/np.pi,0])
             self.state[agent]["pose"] = pose
+            self.state[agent]["pose_rc"] = self._xy2rc(*pose[:2])
             self.state[agent]["ori"] = ori
             self.state[agent]["vel"] = 0
+            self.pb_agents[agent] = robot
 
         ## setup target
         self.target_pose,_ = self._get_random_pose()
         self.target_pose[2] = 0.5
+        self.target_pose_rc = self._xy2rc(*self.target_pose[:2])
         self.target = p.loadURDF(self.target_urdf, basePosition=self.target_pose, useFixedBase=True)
 
         ## initialize objects
@@ -134,6 +142,11 @@ class icm_env(pz.ParallelEnv):
         ## setup recording
         if self.record:
             self._setup_recording()
+
+        ## initialize entropy
+        self.entropy = torch.where(self.map==1,1,0)
+
+        self._get_obs({agent : np.array([0]) for agent in self.agents})
 
         if not return_info:
             return self.observations
@@ -147,14 +160,11 @@ class icm_env(pz.ParallelEnv):
             self.agents = []
             return {}, {}, {}, {}, {}
 
-        for agent in self.agents:
-            self._act(agent, actions[agent])
+        self._act(actions)
+        self._get_obs(actions)
+        self._get_rew(actions)
 
-        self.observations = {agent : self._get_obs(agent) for agent in self.agents}
-
-        self.rewards = {agent : self._get_rew(agent, actions[agent]) for agent in self.agents}
-
-        self.terminations = {agent: False for agent in self.agents}
+        self.terminations = {agent: self.detection for agent in self.agents}
 
         self.t += 1
         env_truncation = self.t >= self.max_steps
@@ -167,8 +177,168 @@ class icm_env(pz.ParallelEnv):
 
         return self.observations, self.rewards, self.terminations, self.truncations, self.infos
 
-    def _act(self, agent, action):
-        pass
+    def _act(self, actions):
+        for agent in self.agents:
+            d_heading = np.pi * actions[agent][0]
+            self.forces[agent] = self.mass * self.max_accel * np.array([np.sin(d_heading),np.cos(d_heading),0]).reshape((-1,))
+
+        for _ in range(self.repeat_action):
+            for agent in self.agents:
+                p.applyExternalForce(self.pb_agents[agent],-1,self.forces[agent],[0,0,0],p.LINK_FRAME)
+                
+                self.client.stepSimulation()
+
+                ## collision detection
+                ctx = p.getContactPoints(self.pb_agents[agent],self.walls)
+                if len(ctx) > 0:
+                    self.collisions[agent] = True
+                else:
+                    for agent_ in self.agents:
+                        if agent != agent_:
+                            ctx = p.getContactPoints(self.pb_agents[agent],self.pb_agents[agent_])
+                            if len(ctx) > 0:
+                                self.collisions[agent] = True
+        
+    def _get_obs(self, actions):
+
+        self._get_states()
+        self._decay_entropy()
+        self._get_scans()
+        self._get_crops()
+
+        for agent in self.agents:
+            self.observations[agent]["vec"] = np.array([
+                self.state[agent]["vel"],
+                self.state[agent]["ori"]/np.pi,
+                actions[agent][0]
+                ])
+
+        if self.record:
+            self._save_entropy()
+
+    def _get_states(self):
+        for agent in self.agents:
+            pose, oris = p.getBasePositionAndOrientation(self.pb_agents[agent])
+            pose_rc = self._xy2rc(*pose[:2])
+            ori = p.getEulerFromQuaternion(oris)[2]
+            vel,_ = p.getBaseVelocity(self.pb_agents[agent])
+
+            self.state[agent]["pose"] = pose 
+            self.state[agent]["pose_rc"] = pose_rc
+            self.state[agent]["ori"] = ori 
+            self.state[agent]["vel"] = float(np.linalg.norm(vel[:2]))
+
+        self.target_pose,_ = p.getBasePositionAndOrientation(self.target)
+        self.target_pose_rc = self._xy2rc(*self.target_pose[:2])
+
+    def _decay_entropy(self):
+        self.entropy = self.entropy_decay * self.entropy
+
+    def _get_scans(self):
+        for agent in self.agents:
+            origins = [[self.state[agent]["pose"][0],self.state[agent]["pose"][1],self.scan_height] for i in range(self.num_scans)]
+            endpts = [
+                [
+                    self.scan_range * np.cos(i*self.scan_angle + self.state[agent]["ori"] - self.FOV/2) + self.state[agent]["pose"][0],
+                    self.scan_range * np.sin(i*self.scan_angle + self.state[agent]["ori"] - self.FOV/2) + self.state[agent]["pose"][1],
+                    self.scan_height
+                ]
+                    for i in range(self.num_scans)]
+            scan_data = p.rayTestBatch(origins,endpts,numThreads=self.lidar_threads)
+            scans = []
+            # scans: [scanX,scanY,endpointCollision,targetHitDist]
+            for i in range(self.num_scans):
+                if scan_data[i][0] == self.target:
+                    dist = torch.linalg.norm(torch.tensor(scan_data[i][3][:2])).item()
+                    scans.append([scan_data[i][3][:2],True,dist])
+                elif scan_data[i][0] != -1: #check if hit detected
+                    scans.append([scan_data[i][3][:2],True,10])
+                else:
+                    scans.append([endpts[i][:2],False,10])
+            
+            for hit in scans:
+                hr,hc = self._xy2rc(*hit[0])
+                sr,sc = self.state[agent]["pose_rc"]
+                if hit[1]:
+                    self.entropy[hr,hc] = 1
+                    if hit[2] < self.target_threshold:
+                        self.detection = True
+                        print("Target found.")
+                free = util.bresenham((sr,sc),(hr,hc))
+                for f in free:
+                    self.entropy[f[0],f[1]] = -1
+            self.entropy += torch.where(self.map==1,1,0)
+            self.entropy = torch.clamp(self.entropy,-1,1)
+
+    def _get_crops(self):
+        for agent in self.agents:
+            r,c = self.state[agent]["pose_rc"]
+            entropy_marked = self.entropy.clone()
+            entropy_marked[r-2:r+3,c-2:c+3] = 0.5 #robot
+            #entropy_marked[r-5:r+6,c-5:c+6] = 1
+            #entropy_marked = torch.where(self.map==1,1.,0.)
+            # top side
+            if r < self.obs_w/2:
+                # left side
+                if c < self.obs_w/2:
+                    crop = entropy_marked[:self.obs_w,:self.obs_w]
+                # right side
+                elif c > self.w - self.obs_w/2:
+                    crop = entropy_marked[:self.obs_w,-self.obs_w:]
+                else:
+                    if self.obs_w % 2:
+                        crop = entropy_marked[:self.obs_w,c-self.obs_w//2:c+self.obs_w//2+1]
+                    else:
+                        crop = entropy_marked[:self.obs_w,c-self.obs_w//2:c+self.obs_w//2]
+            # bottom side
+            elif r > self.h - self.obs_w/2:
+                # left side
+                if c < self.obs_w/2:
+                    crop = entropy_marked[-self.obs_w:,:self.obs_w]
+                # right side
+                elif c > self.w - self.obs_w/2:
+                    crop = entropy_marked[-self.obs_w:,-self.obs_w:]
+                else:
+                    if self.obs_w % 2:
+                        crop = entropy_marked[-self.obs_w:,c-self.obs_w//2:c+self.obs_w//2+1]
+                    else:
+                        crop = entropy_marked[-self.obs_w:,c-self.obs_w//2:c+self.obs_w//2]
+            else:
+                if self.obs_w % 2:
+                    # left side
+                    if c < self.obs_w/2:
+                        crop = entropy_marked[r-self.obs_w//2:r+self.obs_w//2+1,:self.obs_w]
+                    # right side
+                    elif c > self.w - self.obs_w/2:
+                        crop = entropy_marked[r-self.obs_w//2:r+self.obs_w//2+1,-self.obs_w:]
+                    #center crop on robot
+                    else:
+                        crop = entropy_marked[r-self.obs_w//2:r+self.obs_w//2+1,c-self.obs_w//2:c+self.obs_w//2+1]
+                else:
+                    # left side
+                    if c < self.obs_w/2:
+                        crop = entropy_marked[r-self.obs_w//2:r+self.obs_w//2,:self.obs_w]
+                    # right side
+                    elif c > self.w - self.obs_w/2:
+                        crop = entropy_marked[r-self.obs_w//2:r+self.obs_w//2,-self.obs_w:]
+                    #center crop on robot
+                    else:
+                        crop = entropy_marked[r-self.obs_w//2:r+self.obs_w//2,c-self.obs_w//2:c+self.obs_w//2]
+            
+            #assert crop.size() == (self.obs_w,self.obs_w)
+
+            if self.t == 0:
+                self.observations[agent]["img"] = torch.unsqueeze(crop,0).repeat(self.n_frames,1,1)
+            else:
+                self.observations[agent]["img"] = torch.cat((torch.unsqueeze(crop,0),self.observations[agent]["img"]),dim=0)[:self.n_frames,:,:]
+
+    def _get_rew(self, actions):
+        for agent in self.agents:
+            Li = actions[agent][1]
+            Lf = actions[agent][2]
+
+            self.rewards[agent] = self.lmbda * (self.eta * Lf + self.detection_reward) \
+                - (1 - self.beta) * Li - self.beta * Lf
 
     def _get_random_pose(self):
         while True:
@@ -210,12 +380,31 @@ class icm_env(pz.ParallelEnv):
         self.fig.subplots_adjust(left=0,bottom=0,right=1,top=1,wspace=None,hspace=None)
         self.ax.set_axis_off()
         self.frames = []
-        self.fig_obs,self.ax_obs = plt.subplots()
-        self.fig_obs.subplots_adjust(left=0,bottom=0,right=1,top=1,wspace=None,hspace=None)
-        self.ax_obs.set_axis_off()
-        self.frames_obs = []
+        #self.fig_obs,self.ax_obs = plt.subplots()
+        #self.fig_obs.subplots_adjust(left=0,bottom=0,right=1,top=1,wspace=None,hspace=None)
+        #self.ax_obs.set_axis_off()
+        #self.frames_obs = []
         self.fps = int(self.policy_dt**-1)
         self.writer = animation.FFMpegWriter(fps=self.fps) 
+
+    def _save_entropy(self):
+        entropy_marked = self.entropy.clone()
+        tr,tc = self.target_pose_rc
+        entropy_marked[tr-3:tr+4,tc-3:tc+4] = 1
+        for agent in self.agents:
+            r,c = self.state[agent]["pose_rc"]
+            entropy_marked[r-2:r+3,c-2:c+3] = 1
+            #self.frames_obs.append([self.ax_obs.imshow(self.crop.numpy(),animated=True,vmin=-1,vmax=1)])
+        self.frames.append([self.ax.imshow(entropy_marked.numpy(),animated=True,vmin=-1,vmax=1)])
+        
+    def _save_videos(self):
+        ani = animation.ArtistAnimation(self.fig,self.frames,interval=int(1000/self.fps),blit=True,repeat=False)
+        ani.save(PATH_DIR+self.log_dir+self.log_name,writer=self.writer)
+        print("Video saved to "+PATH_DIR+self.log_dir+self.log_name)
+
+        #ani_obs = animation.ArtistAnimation(self.fig_obs,self.frames_obs,interval=int(1000/self.fps),blit=True,repeat=False)
+        #ani_obs.save(PATH_DIR+self.log_dir+self.log_name_obs,writer=self.writer)
+        #print("Video saved to "+PATH_DIR+self.log_dir+self.log_name_obs)
 
     def _load_config(self):
         ## time
@@ -272,7 +461,7 @@ class icm_env(pz.ParallelEnv):
         self.scan_density = self.scan_density_coef * 2 * np.pi / np.arctan2(self.resolution,self.scan_range) # resolution / max(height, width)
         self.num_scans = int(self.FOV / (2 * np.pi) * self.scan_density)
         self.scan_angle = self.FOV / self.num_scans #rad
-        self.lidar_threads = self.cfg["lidar"]["threads"] if self.vecenv else 1
+        self.lidar_threads = self.cfg["lidar"]["threads"]
 
         ## reward params
         self.detection_reward = self.cfg["rewards"]["detection"]
@@ -282,13 +471,25 @@ class icm_env(pz.ParallelEnv):
         self.eta = self.cfg["rewards"]["eta"]
 
         ## kernel
-        self.kernel_size = self.cfg["kernel"]
+        self.kernel_size = self.cfg["environment"]["kernel"]
         self.k = torch.ones((self.kernel_size, self.kernel_size))
         
 
 
 
+if __name__ == "__main__":
+    import time
 
+    cfg_file = "cfg.yaml"
+
+    env = icm_env(headless=False,record=False,cfg=cfg_file)
+    env.reset()
+
+    act = {agent : np.array([0,0,0]) for agent in env.agents}
+
+    for i in range(10000):
+        env.step(act)
+        time.sleep(0.1)
 
 
 
