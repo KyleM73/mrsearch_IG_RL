@@ -1,6 +1,8 @@
 import numpy as np
 import torch
 
+import util
+
 ## Device 
 if torch.cuda.is_available():
     device = torch.device("cuda")
@@ -171,7 +173,6 @@ def PPO(env, policy, optimizer, max_steps, epochs, batch_size, frame_size, stack
 if __name__ == "__main__":
     from env import icm_env
     from policy import Network
-    import util
 
     ## Device 
     if torch.cuda.is_available():
