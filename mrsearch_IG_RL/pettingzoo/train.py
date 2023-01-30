@@ -36,7 +36,7 @@ net = policy.Network().to(device)
 opt = torch.optim.Adam(net.parameters(), lr=learning_rate, eps=1e-5)
 
 PPO(env=env, policy=net, optimizer=opt, max_steps=total_steps, epochs=epochs, 
-    batch_size=batch_size, frame_size=frame_size, stack_size, num_agents=n_agents, 
+    batch_size=batch_size, frame_size=frame_size, stack_size=stack_size, num_agents=n_agents, 
     n_steps=n_steps, vec_obs_size=obs_size, loss_coef=loss_coef, device=device)
 
 
