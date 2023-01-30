@@ -1,3 +1,36 @@
+import numpy as np
+import torch
+
+def dict2torch(x, device):
+        # assumes two levels
+        obs = []
+        for k,v in x.items():
+            if isinstance(v,dict):
+                obs.append(dict2torch(v, device))
+            else:
+                if isinstance(v,np.ndarray):
+                    obs.append(torch.from_numpy(v).to(device))
+                elif isinstance(v,torch.Tensor):
+                    obs.append(v.to(device))
+                else:
+                    obs.append(v)
+        return tuple(obs)
+
+def torch2obsdict(x, env):
+    obs = {}
+    for i,agent in zip(range(len(x)),env.possible_agents):
+        obs[agent] = {
+            "img" : x[i][0],#.numpy().astype(np.float32),
+            "vec" : x[i][1].numpy().astype(np.float32)
+            }
+    return obs
+
+def torch2dict(x, env):
+    obs = {}
+    for i,agent in zip(range(len(x)),env.possible_agents):
+        obs[agent] = x[i]
+    return obs
+
 def bresenham(start,end):
     """
     Adapted from PythonRobotics:

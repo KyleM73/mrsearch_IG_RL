@@ -1,6 +1,7 @@
 import datetime
 import functools
 import gymnasium as gym
+import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -23,7 +24,10 @@ def wrap(env_fn, headless, record, cfg):
 class icm_env(pz.ParallelEnv):
     metadata = {"name": "icm_v1"}
 
-    def __init__(self, headless=False, record=False, cfg=None):
+    def __init__(self, headless=False, record=False, cfg=None, output_dir=None):
+        self.record = record
+        if self.record: self.output_dir = output_dir
+
         if isinstance(cfg,str):
             assert os.path.exists(cfg), "configuration file specified does not exist"
             with open(cfg, 'r') as stream:
@@ -49,7 +53,7 @@ class icm_env(pz.ParallelEnv):
         }
         self._action_spaces = {
             agent: gym.spaces.Box(
-                low=-1,high=1,shape=(3,),dtype=np.float32
+                low=-1,high=1,shape=(1,),dtype=np.float32
             ) for agent in self.possible_agents
         }
         
@@ -59,8 +63,6 @@ class icm_env(pz.ParallelEnv):
         else:
             self.client = bc.BulletClient(connection_mode=p.GUI)
             p.configureDebugVisualizer(p.COV_ENABLE_GUI,0)
-
-        self.record = record
 
     @functools.lru_cache(maxsize=None)
     def observation_space(self, agent):
@@ -93,8 +95,9 @@ class icm_env(pz.ParallelEnv):
         self.state = {agent: {"pose" : None, "ori" : None, "vel" : None} for agent in self.agents}
         self.observations = {agent: {"img" : None, "vec" : None} for agent in self.agents}
         self.collisions = {agent : False for agent in self.agents}
-        self.detection = False
+        self.detections = {agent: False for agent in self.agents}
         self.forces = {agent : np.array([0,0,0]) for agent in self.agents}
+        self.torques = {agent : np.array([0,0,0]) for agent in self.agents}
         self.t = 0
 
         self._agent_selector = pz.utils.agent_selector(self.agents)
@@ -141,6 +144,7 @@ class icm_env(pz.ParallelEnv):
 
         ## setup recording
         if self.record:
+            self.figs = {agent : {} for agent in self.agents}
             self._setup_recording()
 
         ## initialize entropy
@@ -160,11 +164,13 @@ class icm_env(pz.ParallelEnv):
             self.agents = []
             return {}, {}, {}, {}, {}
 
+        self.collisions = {agent : False for agent in self.agents} #reset every step
+
         self._act(actions)
         self._get_obs(actions)
-        self._get_rew(actions)
+        self._get_rew()
 
-        self.terminations = {agent: self.detection for agent in self.agents}
+        self.terminations = {agent: self.detections[agent] for agent in self.agents}
 
         self.t += 1
         env_truncation = self.t >= self.max_steps
@@ -175,17 +181,25 @@ class icm_env(pz.ParallelEnv):
         if env_truncation:
             self.agents = []
 
+        if self.record:
+            if any([self.terminations[agent] for agent in self.agents]) or any([self.truncations[agent] for agent in self.agents]):
+                self._save_videos()
+
         return self.observations, self.rewards, self.terminations, self.truncations, self.infos
 
     def _act(self, actions):
         for agent in self.agents:
-            d_heading = np.pi * actions[agent][0]
-            self.forces[agent] = self.mass * self.max_accel * np.array([np.sin(d_heading),np.cos(d_heading),0]).reshape((-1,))
+            d_heading = np.pi * actions[agent]
+            if isinstance(d_heading,torch.Tensor):
+                d_heading = d_heading.flatten().numpy()
+            self.forces[agent] = self.mass * self.max_accel * np.array([np.cos(d_heading)[0],np.sin(d_heading)[0],0]).reshape((-1,))
+            err = d_heading - (self.state[agent]["ori"] - np.pi/2)
+            self.torques[agent] = self.mass_matrix * self.max_aaccel * np.array([0,0,self.Kp*err[0]/np.pi]).reshape((-1,))
 
         for _ in range(self.repeat_action):
             for agent in self.agents:
                 p.applyExternalForce(self.pb_agents[agent],-1,self.forces[agent],[0,0,0],p.LINK_FRAME)
-                
+                p.applyExternalTorque(self.pb_agents[agent],-1,self.torques[agent],p.LINK_FRAME)
                 self.client.stepSimulation()
 
                 ## collision detection
@@ -211,7 +225,7 @@ class icm_env(pz.ParallelEnv):
                 self.state[agent]["vel"],
                 self.state[agent]["ori"]/np.pi,
                 actions[agent][0]
-                ])
+                ],dtype=np.float32)
 
         if self.record:
             self._save_entropy()
@@ -249,7 +263,7 @@ class icm_env(pz.ParallelEnv):
             # scans: [scanX,scanY,endpointCollision,targetHitDist]
             for i in range(self.num_scans):
                 if scan_data[i][0] == self.target:
-                    dist = torch.linalg.norm(torch.tensor(scan_data[i][3][:2])).item()
+                    dist = torch.linalg.norm(torch.tensor(scan_data[i][3][:2]) - torch.tensor(self.state[agent]["pose"][:2])).item()
                     scans.append([scan_data[i][3][:2],True,dist])
                 elif scan_data[i][0] != -1: #check if hit detected
                     scans.append([scan_data[i][3][:2],True,10])
@@ -262,7 +276,7 @@ class icm_env(pz.ParallelEnv):
                 if hit[1]:
                     self.entropy[hr,hc] = 1
                     if hit[2] < self.target_threshold:
-                        self.detection = True
+                        self.detections[agent] = True
                         print("Target found.")
                 free = util.bresenham((sr,sc),(hr,hc))
                 for f in free:
@@ -332,13 +346,10 @@ class icm_env(pz.ParallelEnv):
             else:
                 self.observations[agent]["img"] = torch.cat((torch.unsqueeze(crop,0),self.observations[agent]["img"]),dim=0)[:self.n_frames,:,:]
 
-    def _get_rew(self, actions):
+    def _get_rew(self):
         for agent in self.agents:
-            Li = actions[agent][1]
-            Lf = actions[agent][2]
-
-            self.rewards[agent] = self.lmbda * (self.eta * Lf + self.detection_reward) \
-                - (1 - self.beta) * Li - self.beta * Lf
+            self.rewards[agent] = self.lmbda * self.detection_reward * self.detections[agent]
+            self.rewards[agent] = self.collision_reward * self.collisions[agent]
 
     def _get_random_pose(self):
         while True:
@@ -380,10 +391,13 @@ class icm_env(pz.ParallelEnv):
         self.fig.subplots_adjust(left=0,bottom=0,right=1,top=1,wspace=None,hspace=None)
         self.ax.set_axis_off()
         self.frames = []
-        #self.fig_obs,self.ax_obs = plt.subplots()
-        #self.fig_obs.subplots_adjust(left=0,bottom=0,right=1,top=1,wspace=None,hspace=None)
-        #self.ax_obs.set_axis_off()
-        #self.frames_obs = []
+        for agent in self.agents:
+            fig_obs,ax_obs = plt.subplots()
+            fig_obs.subplots_adjust(left=0,bottom=0,right=1,top=1,wspace=None,hspace=None)
+            ax_obs.set_axis_off()
+            self.figs[agent]["fig"] = fig_obs
+            self.figs[agent]["ax"] = ax_obs
+            self.figs[agent]["frames"] = []
         self.fps = int(self.policy_dt**-1)
         self.writer = animation.FFMpegWriter(fps=self.fps) 
 
@@ -394,17 +408,25 @@ class icm_env(pz.ParallelEnv):
         for agent in self.agents:
             r,c = self.state[agent]["pose_rc"]
             entropy_marked[r-2:r+3,c-2:c+3] = 1
+            self.figs[agent]["frames"].append([
+                self.figs[agent]["ax"].imshow(
+                    self.observations[agent]["img"][0,...].numpy(),
+                    animated=True,vmin=-1,vmax=1)
+                ])
             #self.frames_obs.append([self.ax_obs.imshow(self.crop.numpy(),animated=True,vmin=-1,vmax=1)])
         self.frames.append([self.ax.imshow(entropy_marked.numpy(),animated=True,vmin=-1,vmax=1)])
         
     def _save_videos(self):
         ani = animation.ArtistAnimation(self.fig,self.frames,interval=int(1000/self.fps),blit=True,repeat=False)
-        ani.save(PATH_DIR+self.log_dir+self.log_name,writer=self.writer)
-        print("Video saved to "+PATH_DIR+self.log_dir+self.log_name)
+        ani.save("."+self.log_dir+self.log_name+".mp4",writer=self.writer)
+        print("Video saved to "+"."+self.log_dir+self.log_name+".mp4")
 
-        #ani_obs = animation.ArtistAnimation(self.fig_obs,self.frames_obs,interval=int(1000/self.fps),blit=True,repeat=False)
-        #ani_obs.save(PATH_DIR+self.log_dir+self.log_name_obs,writer=self.writer)
-        #print("Video saved to "+PATH_DIR+self.log_dir+self.log_name_obs)
+        for agent in self.figs.keys():
+            ani_obs = animation.ArtistAnimation(self.figs[agent]["fig"],self.figs[agent]["frames"],interval=int(1000/self.fps),blit=True,repeat=False)
+            ani_obs.save("."+self.log_dir+self.log_name_obs+"_crop_{}.mp4".format(agent),writer=self.writer)
+            print("Video saved to "+"."+self.log_dir+self.log_name_obs+"_crop_{}.mp4".format(agent))
+
+        print("Saving videos complete.")
 
     def _load_config(self):
         ## time
@@ -412,8 +434,12 @@ class icm_env(pz.ParallelEnv):
 
         ## record params
         self.log_dir = self.cfg["record"]["log_dir"]
-        self.log_name = "/"+self.date+".mp4"
-        self.log_name_obs = "/"+self.date+"_crop.mp4"
+        self.log_name = "/"+self.date
+        self.log_name_obs = "/"+self.date
+        if self.record and self.output_dir is not None:
+            self.log_dir += "/{}".format(self.output_dir)
+            if not os.path.exists("./"+self.log_dir):
+                os.makedirs("./"+self.log_dir)
 
         ## simulation params
         self.horizon = self.cfg["simulation"]["horizon"]
@@ -436,7 +462,7 @@ class icm_env(pz.ParallelEnv):
         self.w = int(self.cfg["environment"]["width"] / self.resolution)
         self.scale_factor = self.cfg["environment"]["scale_factor"]
         self.map_fname = self.cfg["environment"]["filename"]
-        self.map = torch.from_numpy(plt.imread(PATH_DIR+self.map_fname)[:,:,-1])
+        self.map = torch.from_numpy(plt.imread("."+self.map_fname)[:,:,-1])
         self.map_urdf = self.cfg["environment"]["urdf"]
         self.target_urdf = self.cfg["environment"]["target_urdf"]
 
@@ -474,9 +500,6 @@ class icm_env(pz.ParallelEnv):
         self.kernel_size = self.cfg["environment"]["kernel"]
         self.k = torch.ones((self.kernel_size, self.kernel_size))
         
-
-
-
 if __name__ == "__main__":
     import time
 
@@ -485,11 +508,18 @@ if __name__ == "__main__":
     env = icm_env(headless=False,record=False,cfg=cfg_file)
     env.reset()
 
-    act = {agent : np.array([0,0,0]) for agent in env.agents}
+    act = {agent : np.array([0]) for agent in env.agents}
 
-    for i in range(10000):
-        env.step(act)
-        time.sleep(0.1)
+    for i in range(1000):
+        obs,rew,term,trunc,info = env.step(act)
+        if all(term[agent] for agent in env.agents):
+            print("Terminated.")
+            break
+        if all(trunc[agent] for agent in env.agents):
+            print("Time out.")
+            break
+        if not env.headless:
+            time.sleep(0.1)
 
 
 
