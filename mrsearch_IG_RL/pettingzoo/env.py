@@ -270,6 +270,7 @@ class icm_env(pz.ParallelEnv):
                 else:
                     scans.append([endpts[i][:2],False,10])
             
+            flag = False
             for hit in scans:
                 hr,hc = self._xy2rc(*hit[0])
                 sr,sc = self.state[agent]["pose_rc"]
@@ -277,10 +278,12 @@ class icm_env(pz.ParallelEnv):
                     self.entropy[hr,hc] = 1
                     if hit[2] < self.target_threshold:
                         self.detections[agent] = True
-                        print("Target found.")
+                        flag = True
                 free = util.bresenham((sr,sc),(hr,hc))
                 for f in free:
                     self.entropy[f[0],f[1]] = -1
+            if flag:
+                print("Target found.")
             self.entropy += torch.where(self.map==1,1,0)
             self.entropy = torch.clamp(self.entropy,-1,1)
 
