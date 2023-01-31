@@ -19,7 +19,7 @@ def collect_rollouts(env, policy, n_steps, rollout, device=device):
         action_dict = {}
         for i in range(len(obs)):
             actions, logprobs, _, values = policy.get_action_and_value(obs[i])
-            action_dict[env.possible_agents[i]] = actions
+            action_dict[env.possible_agents[i]] = actions.to("cpu")
 
             rollout["obs_img"][step, i] = obs[i][0]
             rollout["obs_vec"][step, i] = obs[i][1]
@@ -33,10 +33,10 @@ def collect_rollouts(env, policy, n_steps, rollout, device=device):
                 rewards[env.possible_agents[i]] += policy.get_intrinsic_reward(
                     (rollout["obs_img"][step-1, i],rollout["obs_vec"][step-1, i]),
                     (rollout["obs_img"][step, i],rollout["obs_vec"][step, i]),
-                    action_dict[env.possible_agents[i]])
+                    action_dict[env.possible_agents[i]].to(device))
             rollout["rewards"][step, i] = torch.tensor(rewards[env.possible_agents[i]])
             rollout["terms"][step, i] = terms[env.possible_agents[i]]
-            rollout["actions"][step, i] = action_dict[env.possible_agents[i]]
+            rollout["actions"][step, i] = action_dict[env.possible_agents[i]].to(device)
 
         total_episodic_return += rollout["rewards"][step].cpu().numpy()
 
