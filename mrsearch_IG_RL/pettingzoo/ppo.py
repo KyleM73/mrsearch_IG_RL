@@ -166,7 +166,7 @@ def PPO(env, policy, optimizer, max_steps, epochs, batch_size, frame_size, stack
         
         print("Training for {} Epochs".format(epochs))
         total_steps += train(env, policy, optimizer, batch_size, epochs, end_step, rollout, loss_coef, ent_coef, vf_coef, clip_coef)
-        torch.save(policy.state_dict(), "./model.pth")
+        torch.save(policy.state_dict(), "./log/model_{}.pth".format(env.date))
         print("\n...{}/{}".format(total_steps,max_steps))
 
 

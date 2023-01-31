@@ -178,12 +178,12 @@ class icm_env(pz.ParallelEnv):
 
         self.infos = {agent: {} for agent in self.agents}
 
-        if env_truncation:
-            self.agents = []
-
         if self.record:
             if any([self.terminations[agent] for agent in self.agents]) or any([self.truncations[agent] for agent in self.agents]):
                 self._save_videos()
+
+        if env_truncation:
+            self.agents = []
 
         return self.observations, self.rewards, self.terminations, self.truncations, self.infos
 
@@ -285,10 +285,15 @@ class icm_env(pz.ParallelEnv):
             self.entropy = torch.clamp(self.entropy,-1,1)
 
     def _get_crops(self):
+        entropy_marked = self.entropy.clone()
         for agent in self.agents:
             r,c = self.state[agent]["pose_rc"]
-            entropy_marked = self.entropy.clone()
-            entropy_marked[r-2:r+3,c-2:c+3] = 0.5 #robot
+            entropy_marked[r-4:r+5,c-4:c+5] = 0.5 #robot
+
+        for agent in self.agents:
+            r,c = self.state[agent]["pose_rc"]
+            #entropy_marked = self.entropy.clone()
+            #entropy_marked[r-2:r+3,c-2:c+3] = 0.5 #robot
             #entropy_marked[r-5:r+6,c-5:c+6] = 1
             #entropy_marked = torch.where(self.map==1,1.,0.)
             # top side
